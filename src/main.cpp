@@ -20,6 +20,8 @@
 #include <crankshaft/jwtkeychain.h>
 #include <crankshaft/ssl.h>
 
+#include <crankshaft/websocket.h>
+
 int acceptSocket = 0;
 
 static bool onlyFails = false;
@@ -135,6 +137,11 @@ void dcCallback( struct CS_ClientInfo *info ) {
 bool jwtInfoReturn( struct CS_ClientInfo *info, const struct CS_Jwt *jwt, const char *csrf );
 bool loginPageReturn( struct CS_ClientInfo *info );
 bool cookieFilter( struct CS_ClientInfo *info ) {
+    const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
+    if( cookieValue != NULL ) {
+        CS_LOG_TRACE("session cookie set %s", cookieValue );
+        return false;
+    }
     return loginPageReturn(info);
 }
 
@@ -182,6 +189,63 @@ bool fudge( struct CS_ClientInfo *info ) {
     }
     return CS_serverDiagnostic200(info);
 }
+
+bool websocket( struct CS_ClientInfo *info ) {
+    if ( CS_WS_requestWantsWebsocket(info) ) {
+        struct CS_WebSocket *gws = CS_WS_create( info, NULL );
+        struct CS_WebSocketFrame *returnFrame = NULL;
+        char *copyBuff = NULL;
+        if( gws ) {
+            while( true ) {
+                struct CS_WebSocketFrame * nextFrame = CS_WS_nextIncomingFrame( gws );
+                if( nextFrame == NULL ) return true;
+                switch( nextFrame->opcode ) {
+                    //We must return a pong for any ping we get.
+                    case CS_WS_OPCODE_PING:
+                        CS_LOG_TRACE("We got incoming ping. %s", CS_WS_describeFrame(nextFrame));
+                        returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_PONG, false, nextFrame->payload, nextFrame->payloadLength );
+                        if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                            goto ERROR_CLOSE;
+                        }
+                        returnFrame = NULL;
+                        
+                        break;
+                    case CS_WS_OPCODE_TEXT:
+                        CS_LOG_TRACE("Incoming text frame. %s", CS_WS_describeFrame(nextFrame));
+                        if( nextFrame->payloadLength > 0 ) {
+                            copyBuff = (char*)CS_tempMemCopy( nextFrame->payload, nextFrame->payloadLength );
+                        } else {
+                            copyBuff = NULL;
+                        }
+                        if( copyBuff ) {
+                            for( int i = 0; i < nextFrame->payloadLength; ++i ) {
+                                if( copyBuff[i] >= 'a' && copyBuff[i] <= 'z' ) {
+                                    copyBuff[i] -= 32;
+                                }
+                            }
+                        }
+                        returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, copyBuff, nextFrame->payloadLength );
+                        copyBuff = NULL;
+                        if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                            goto ERROR_CLOSE;
+                        }
+                        returnFrame = NULL;
+                        break;
+                    default:
+                        CS_LOG_TRACE( "%s", CS_WS_describeFrame( nextFrame ) );
+                        break;
+                }
+
+                CS_WS_returnFrame( gws, nextFrame );
+            }
+ERROR_CLOSE:
+            CS_WS_destroy( gws );
+        }
+    }
+    return true;
+}
+
+
 
 bool doQuit( struct CS_ClientInfo *info ) {
     GotInterrupt = true;
@@ -274,8 +338,7 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/googlelogin", googleLogin},
     { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_EXACT, 0, "/googlelogin", googleLogin},
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_FILTER, 0, "", cookieFilter},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX, 0, "/api", fudge },
-    { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_PREFIX, 0, "/api", fudge },
+    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX, 0, "/ws", websocket},
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
 };
