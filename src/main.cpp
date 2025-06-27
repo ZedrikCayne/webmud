@@ -5,6 +5,7 @@
 #include <openssl/ssl.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include <crankshaft/logger.h>
 #include <crankshaft/commandline.h>
@@ -188,6 +189,13 @@ bool fudge( struct CS_ClientInfo *info ) {
         info->disconnectCallback = dcCallback;
     }
     return CS_serverDiagnostic200(info);
+}
+
+void *remoteThread( void *vws ) {
+    struct CS_WebSocket *gws = (struct CS_WebSocket *)vws;
+    if( gws ) {
+    }
+    return NULL;
 }
 
 bool websocket( struct CS_ClientInfo *info ) {
