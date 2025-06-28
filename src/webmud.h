@@ -1,0 +1,29 @@
+#ifndef __webmuddoth__
+#define __webmuddoth__
+#include <stdbool.h>
+#include <crankshaft/server.h>
+#include <crankshaft/websocket.h>
+#include <crankshaft/socket.h>
+#include "userstate.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+bool startApplication();
+void killApplication();
+
+//Filter for session cookie. Returns a login page if cookie does not exist.
+bool cookieFilter( struct CS_ClientInfo *info );
+bool loginPageReturn( struct CS_ClientInfo *info );
+//Page that redirects to / while setting the session cookie
+bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie );
+//Does the work of checking a login, returns a login page on fail.
+bool googleLogin( struct CS_ClientInfo *info );
+//Main work once we have a session.
+bool websocket( struct CS_ClientInfo *info );
+
+#ifdef __cplusplus
+}
+#endif
+#endif

@@ -1,3 +1,6 @@
+#ifndef __userstatedoth__
+#define __userstatedoth__
+
 #include <crankshaft/tempbuff.h>
 #include <crankshaft/mutex.h>
 #include <crankshaft/list.h>
@@ -5,6 +8,12 @@
 #include <crankshaft/slaballoc.h>
 #include <crankshaft/socket.h>
 #include <crankshaft/uuid.h>
+
+#include "webmud.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct BackscrollLine {
     char *head;
@@ -43,4 +52,7 @@ struct UserState {
 
 struct UserState *CreateUserState( const char *sessionId );
 void DestroyUserState( struct UserState *userState );
-
+#ifdef __cplusplus
+}
+#endif
+#endif
