@@ -40,7 +40,7 @@ void DestroyBackscroll( struct Backscroll *backscroll ) {
 void FeedBackscroll( struct Backscroll *backscroll, const char *input, int inputLength ) {
 }
 
-struct MudState *CreateMud( char *address, int port, int size, int numlines ) {
+struct MudState *CreateMud( char *name, char *address, int port, int size, int numlines ) {
     return NULL;
 }
 

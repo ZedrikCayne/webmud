@@ -40,7 +40,7 @@ struct MudState {
     struct CS_Socket *mudSocket;
 };
 
-struct MudState *CreateMud( char *address, int port, int size, int numlines );
+struct MudState *CreateMud( char *name, char *address, int port, int size, int numlines );
 struct MudState *DestroyMud( struct MudState *mud );
 
 #define SESSION_NAME_SIZE 64
