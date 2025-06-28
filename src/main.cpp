@@ -20,8 +20,12 @@
 #include <crankshaft/storage.h>
 #include <crankshaft/jwtkeychain.h>
 #include <crankshaft/ssl.h>
+#include <crankshaft/hashtable.h>
 
 #include <crankshaft/websocket.h>
+#include <crankshaft/socket.h>
+
+#include "userstate.h"
 
 int acceptSocket = 0;
 
@@ -135,18 +139,24 @@ void dcCallback( struct CS_ClientInfo *info ) {
     CS_LOG_TRACE("Disconnecting.");
 }
 
+static struct CS_HashTable *cheapSessions = NULL;
+
 bool jwtInfoReturn( struct CS_ClientInfo *info, const struct CS_Jwt *jwt, const char *csrf );
 bool loginPageReturn( struct CS_ClientInfo *info );
 bool cookieFilter( struct CS_ClientInfo *info ) {
     const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
     if( cookieValue != NULL ) {
         CS_LOG_TRACE("session cookie set %s", cookieValue );
-        return false;
+        const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
+        if( currentSession ) return false;
     }
     return loginPageReturn(info);
 }
 
-bool googleLogin( struct CS_ClientInfo *info ) {
+static struct CS_HashTable *googleIdToSessionId;
+static bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie );
+
+static bool googleLogin( struct CS_ClientInfo *info ) {
     const char *g_csrf_header = CS_serverGetRequestCookie(info, "g_csrf_token");
     if( !g_csrf_header ) {
         CS_LOG_ERROR( "Login missing csrf token header." );
@@ -170,28 +180,44 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     const struct CS_Jwt *jwt = CS_jwtParse( credential, nLen, 1024 );
     if( !jwt ) {
         CS_LOG_ERROR( "Failed to parse a jwt out of the credential." );
+        CS_jwtFree(jwt);
         return loginPageReturn(info);
     }
     if( !CS_GS_jwtVerify(jwt) ) {
         CS_LOG_ERROR( "Failed to verify a jwt." );
+        CS_jwtFree(jwt);
         return loginPageReturn(info);
     }
 
-    bool returnValue = jwtInfoReturn(info, jwt, g_csrf_header );
+    struct CS_JsonNode *subject = CS_jsonNodeByPath( jwt->jsonPayload, "sub" );
+    if( !subject ) {
+        CS_LOG_ERROR( "Missing subject." );
+        CS_jwtFree(jwt);
+        return loginPageReturn(info);
+    }
+    char *googleId = strndup( (char*)CS_jsonNodeValueAsTempString( subject ), 64 );
+
+    char *sessionId = strndup( (char*)CS_hashtableGet( googleIdToSessionId, googleId ), 64 );
+
+    if( sessionId == NULL ) {
+        sessionId = (char*)CS_uuid4String();
+        CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
+        CS_hashtablePut( cheapSessions, sessionId, googleId );
+    }
 
     CS_jwtFree( jwt );
     
-    return returnValue;
+    return loginRedirectToHead( info, sessionId );
 }
 
-bool fudge( struct CS_ClientInfo *info ) {
+static bool fudge( struct CS_ClientInfo *info ) {
     if( info->disconnectCallback == NULL ) {
         info->disconnectCallback = dcCallback;
     }
     return CS_serverDiagnostic200(info);
 }
 
-void *remoteThread( void *vws ) {
+static void *remoteThread( void *vws ) {
     struct CS_WebSocket *gws = (struct CS_WebSocket *)vws;
     if( gws ) {
     }
@@ -258,6 +284,24 @@ ERROR_CLOSE:
 bool doQuit( struct CS_ClientInfo *info ) {
     GotInterrupt = true;
     return CS_serverDiagnostic200(info);
+}
+
+static bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie ) {
+    struct CS_HtmlNode *root = CS_htmlCreateRoot("html",2048);
+    struct CS_HtmlNode *head = CS_htmlAddContainerAfter( root, "head" );
+    struct CS_HtmlNode *meta = CS_htmlAddContainerAfter( head, "meta" );
+    CS_htmlAddAttribute( meta, "charset", "utf-8" );
+    struct CS_HtmlNode *title = CS_htmlAddContainerAfter( head, "title" );
+    CS_htmlSetContents( title, CS_tempBuffSnprintf(1024, "JWT info page", serverName ) );
+    struct CS_HtmlNode *body = CS_htmlAddContainerAfter( root, "body" );
+    CS_htmlSetContents(body, "Redirecting.<script>window.location=\"/\"</script>");
+    struct CS_StringBuilder *sb = CS_htmlToStringBuilder( root, 2048 );
+    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, CS_SB_buffer( sb ), CS_SB_size( sb ) );
+    CS_serverSetReplyCookie( reply, "session", sessionCookie, true );
+    CS_serverDoReply( info, reply );
+    CS_SB_free( sb );
+    CS_htmlFree( root );
+    return true;
 }
 
 bool jwtInfoReturn( struct CS_ClientInfo *info, const struct CS_Jwt *jwt, const char *csrf ) {
@@ -351,6 +395,7 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
 };
 
+
 int main(int argc, char *argv[] ) {
     const char * error = CS_argsParse(argc, argv, &myCS_ArgTable);
     if( error != NULL || wantHelp ) {
@@ -388,6 +433,9 @@ int main(int argc, char *argv[] ) {
     if( CS_GS_initWithEnvironmentVariable( "GOOGLE_JSON" ) ) {
         CS_LOG_WARN("GOOGLE_JSON not defined in the environment. Anything depending on google services json being initialized will fail.");
     }
+
+    googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
+    cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
 
     CS_LOG_INFO("Server Name: %s", serverName);
     CS_LOG_INFO("Port Number is %d", portNum);
