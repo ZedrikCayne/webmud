@@ -4,6 +4,8 @@ project( webmud )
 
 set( SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src )
 
+set(CMAKE_BUILD_TYPE Debug)
+
 file( GLOB SOURCES ${SOURCE_DIR}/*.cpp ${SOURCE_DIR}/*.c )
 
 add_executable( webmud ${SOURCES} )

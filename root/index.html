@@ -105,6 +105,7 @@ textarea {
         let backScroll = [];
 
         function messageEvent( event ) {
+            console.log(event);
             if( backScroll.length > 300 ) backScroll.shift();
             backScroll.push( event.data );
 

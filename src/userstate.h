@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 struct BackscrollLine {
-    char *head;
+    const char *head;
     int size;
 };
 
@@ -24,7 +24,8 @@ struct Backscroll {
     struct CS_TempBuffer *backscrollBuffer;
     struct CS_SlabAllocator *backscrollSlabs;
     struct CS_List *backscrollLines;
-    char *currentStartOfLine;
+    const char *currentStartOfLine;
+    int currentLineLength;
     int numLines;
     pthread_mutex_t *backscrollMutex;
 };

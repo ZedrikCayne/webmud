@@ -7,6 +7,7 @@
 #include <crankshaft/googleservices.h>
 #include <crankshaft/json.h>
 #include <crankshaft/logger.h>
+#include <crankshaft/list.h>
 #include "webmud.h"
 
 static struct CS_HashTable *cheapSessions = NULL;
@@ -37,12 +38,32 @@ bool cookieFilter( struct CS_ClientInfo *info ) {
     return loginPageReturn(info);
 }
 
+static struct CS_WebSocketFrame *backscrollToFrame( struct CS_WebSocket *ws,
+        const struct CS_ListItem *item ) {
+    struct BackscrollLine *line = (struct BackscrollLine *)item->what;
+    struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_TEXT, false, line->head, line->size);
+    return returnFrame;
+}
+
 bool websocket( struct CS_ClientInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
+        const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
+        const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
         char *copyBuff = NULL;
+        struct Backscroll *bs = (struct Backscroll *)currentSession;
+        CS_LOG_INFO("Backscroll: %p", bs);
+        int printLength = 0;
+        char *tempbuff;
+        const struct CS_ListItem *theItem;
         if( gws ) {
+            CS_LIST_ITER( bs->backscrollLines, anItem ) {
+                returnFrame = backscrollToFrame( gws, anItem );
+                if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                    goto ERROR_CLOSE;
+                }
+            }
             while( true ) {
                 struct CS_WebSocketFrame * nextFrame = CS_WS_nextIncomingFrame( gws );
                 if( nextFrame == NULL ) return true;
@@ -54,29 +75,52 @@ bool websocket( struct CS_ClientInfo *info ) {
                         if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
                             goto ERROR_CLOSE;
                         }
+                        CS_LOG_INFO("Backscroll: %p", bs);
                         returnFrame = NULL;
                         
                         break;
                     case CS_WS_OPCODE_TEXT:
                         CS_LOG_TRACE("Incoming text frame. %s", CS_WS_describeFrame(nextFrame));
-                        if( nextFrame->payloadLength > 0 ) {
-                            copyBuff = (char*)CS_tempMemCopy( nextFrame->payload, nextFrame->payloadLength );
-                        } else {
-                            copyBuff = NULL;
-                        }
-                        if( copyBuff ) {
-                            for( int i = 0; i < nextFrame->payloadLength; ++i ) {
-                                if( copyBuff[i] >= 'a' && copyBuff[i] <= 'z' ) {
-                                    copyBuff[i] -= 32;
-                                }
+                        FeedBackscroll( bs, nextFrame->payload, nextFrame->payloadLength );
+                        tempbuff = CS_tempBuffSnprintf( 128, "BS: %d lines. first line:\r\n", CS_listCount( bs->backscrollLines ) );
+                        if( tempbuff ) {
+                            returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, tempbuff, strlen( tempbuff ) );
+                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                                goto ERROR_CLOSE;
                             }
                         }
-                        returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, copyBuff, nextFrame->payloadLength );
-                        copyBuff = NULL;
-                        if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                            goto ERROR_CLOSE;
+                        theItem = CS_listGetHead(bs->backscrollLines);
+                        if( theItem ) {
+                            returnFrame = backscrollToFrame( gws, theItem );
+                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                                goto ERROR_CLOSE;
+                            }
                         }
-                        returnFrame = NULL;
+                        tempbuff = CS_tempBuffSnprintf( 128, "BS: last ~2 lines:\r\n", CS_listCount( bs->backscrollLines ) );
+                        if( tempbuff ) {
+                            returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, tempbuff, strlen( tempbuff ) );
+                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                                goto ERROR_CLOSE;
+                            }
+                        }
+                        theItem = CS_listGetTail( bs->backscrollLines );
+                        if( theItem && theItem->last ) theItem = theItem->last;
+                        if( theItem ) {
+                            returnFrame = backscrollToFrame( gws, theItem );
+                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                                goto ERROR_CLOSE;
+                            }
+                        }
+                        if( theItem && theItem->next ) {
+                            if( theItem->what ) CS_LOG_TRACE("LINE: %d %.*s", theItem->size, theItem->size, theItem->what);
+                            theItem = theItem->next;
+                            returnFrame = backscrollToFrame( gws, theItem );
+                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
+                                goto ERROR_CLOSE;
+                            }
+                        }
+
+                        
                         break;
                     default:
                         CS_LOG_TRACE( "%s", CS_WS_describeFrame( nextFrame ) );
@@ -153,12 +197,15 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     }
     char *googleId = strndup( (char*)CS_jsonNodeValueAsTempString( subject ), 64 );
 
+
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
+        struct Backscroll *backscroll = CreateBackscroll( 512, 50 );
+        CS_LOG_TRACE( "Backscroll %p", backscroll );
         sessionId = CS_uuid4String();
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
-        CS_hashtablePut( cheapSessions, sessionId, googleId );
+        CS_hashtablePut( cheapSessions, sessionId, backscroll );
     }
 
     CS_jwtFree( jwt );
