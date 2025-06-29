@@ -201,7 +201,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
-        struct Backscroll *backscroll = CreateBackscroll( 512, 50 );
+        struct Backscroll *backscroll = CreateBackscroll( 32768, 500 );
         CS_LOG_TRACE( "Backscroll %p", backscroll );
         sessionId = CS_uuid4String();
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
