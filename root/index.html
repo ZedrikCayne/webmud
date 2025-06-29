@@ -80,6 +80,7 @@ code {
     max-height: 80vh;
     overflow-y: scroll;
     white-space: pre-line;
+    word-wrap: break-word;
 }
 textarea {
     max-height: 20vh;
@@ -90,7 +91,7 @@ textarea {
 </head>
 <body>
     <code id="outputDiv"></code>
-    <textarea id="inputBox" type="text"></textarea><br></br>
+    <textarea id="inputBox" type="text" autofocus></textarea><br></br>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;
