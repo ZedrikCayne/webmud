@@ -1,3 +1,2 @@
-lldb -- build/webmud --trace
-#gdb --args build/webmud --trace
-#build/webmud
+#lldb -- build/webmud --trace
+gdb --args build/webmud --trace
