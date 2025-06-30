@@ -213,7 +213,7 @@ void *consumeThread(void *var) {
             CS_PP_reset( pp );
             CS_socketUnlockInputBuffer( mud->mudSocket );
             mud->linesWaiting += mud->backscroll->numLinesPushed - lastLine;
-            if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, true, true );
+            if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, 0, NULL, true, true );
         }
     }
     mud->running = false;
@@ -276,21 +276,21 @@ void DestroyUserState( struct UserState *userState ) {
     }
 }
 
-void MudBackscrollToWebsockets( struct MudState *mud, bool lock, bool lockUser ) {
+void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, bool lock, bool lockUser ) {
     pthread_mutex_t *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
     if( mutex ) {
         if( lock ) pthread_mutex_lock(mutex);
-        if( mud->linesWaiting > 0 ) {
-            int currentWaiting = -(mud->linesWaiting);
-            const struct CS_ListItem *lastWaitingItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
-            if( lastWaitingItem == NULL ) CS_listGetHead( mud->backscroll->backscrollLines );
-            if( lastWaitingItem ) {
+        if( mud->linesWaiting > 0 || number != 0) {
+            int currentWaiting = number!=0?-number:-mud->linesWaiting;
+            const struct CS_ListItem *backscrollItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
+            if( backscrollItem == NULL ) backscrollItem = CS_listGetHead( mud->backscroll->backscrollLines );
+            if( backscrollItem ) {
                 mud->linesWaiting = 0;
             }
-            while( lastWaitingItem ) {
-                struct BackscrollLine *current = (struct BackscrollLine *)lastWaitingItem->what;
+            while( backscrollItem ) {
+                struct BackscrollLine *current = (struct BackscrollLine *)backscrollItem->what;
                 TextToWebsockets( mud->user, current->head, current->size, lockUser );
-                lastWaitingItem = lastWaitingItem->next;
+                backscrollItem = backscrollItem->next;
             }
         }
         if( lock ) pthread_mutex_unlock(mutex);
@@ -427,7 +427,7 @@ static void setNewFront( struct UserState *userState, const struct CS_ListItem *
         if( next ) {
             struct MudState *state = (struct MudState *)userState->front->what;
             NullStringToWebsockets( userState, CS_tempBuffSnprintf( 128, "==== %s ====", state->name ), false );
-            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, false, false );
+            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, 0, NULL, false, false );
         } else {
             NullStringToWebsockets( userState, "==== NO WORLD ====", false );
         }

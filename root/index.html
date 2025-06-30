@@ -51,6 +51,7 @@ table {
 	border-spacing: 0;
 }
 /* Reset Ends */
+
 html {
     align: center;
     align-content: center;
@@ -75,14 +76,14 @@ body,code,textarea {
     scrollbar-color: #404040 #808080;
     scrollbar-width: thin;
 }
-code {
+.output-area {
     min-height: 80vh;
     max-height: 80vh;
     overflow-y: scroll;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
-textarea {
+.input-area {
     max-height: 20vh;
     min-height: 20vh;
     overflow-y: scroll;
@@ -90,8 +91,12 @@ textarea {
 </style>
 </head>
 <body>
+    <div class="output-area">
     <code id="outputDiv"></code>
-    <textarea id="inputBox" type="text" autofocus></textarea><br></br>
+    </div>
+    <div class="input-area">
+    <textarea class="input-area" id="inputBox" type="text" autofocus></textarea><br></br>
+    </div>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;
@@ -104,6 +109,7 @@ textarea {
         }) ;
 
         let backScroll = [];
+        let inputCache = [];
 
         function messageEvent( event ) {
             console.log(event);

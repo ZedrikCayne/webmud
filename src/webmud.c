@@ -158,12 +158,27 @@ static bool connectCommand( struct UserState *userState, const char *line, int l
     return false;
 }
 
+static bool loopbackCommand( struct UserState *state, const char *line, int length ) {
+    state->loopback = !state->loopback;
+    if( state->loopback ) {
+        NullStringToWebsockets( state, "Loopback mode on. All text sent just comes right back.", true );
+    } else {
+        NullStringToWebsockets( state, "Loopback mode off.", true );
+    }
+    return false;
+}
+
+static bool recallCommand( struct UserState *state, const char *line, int length ) {
+}
+
 static struct commandToHandler commands[] = {
     { "/info", 5, infoCommand },
     { "/connect", 8, connectCommand },
     { "/next", 5, nextCommand },
     { "/prev", 5, prevCommand },
-    { "/pick", 5, pickCommand }
+    { "/pick", 5, pickCommand },
+    { "/loopback", 9, loopbackCommand },
+    { "/recall", 7, recallCommand }
 };
 
 bool dealWithUserCommand( struct UserState *user, const char *line, int lineLength ) {
@@ -181,11 +196,15 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
     if( frame->payload != NULL && *(char*)frame->payload == '/' ) {
         dealWithUserCommand( user, frame->payload, frame->payloadLength );
     } else {
-        //Insert text hitting a MUD instead.
-        if( user->front ) {
-            TextToFront( user, frame->payload, frame->payloadLength, true );
+        //Testing loopback state.
+        if( user->loopback ) {
+            TextToWebsockets( user, frame->payload, frame->payloadLength, true );
         } else {
-            NullStringToWebsockets( user, "Not connected anywhere.", true );
+            if( user->front ) {
+                TextToFront( user, frame->payload, frame->payloadLength, true );
+            } else {
+                NullStringToWebsockets( user, "Not connected anywhere.", true );
+            }
         }
     }
 }

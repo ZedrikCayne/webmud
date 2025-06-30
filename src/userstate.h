@@ -57,7 +57,7 @@ struct MudState {
 struct MudState *CreateMud( struct UserState *user, char *name, char *address, int port, bool ssl, bool tlsV1, int size, int numlines );
 bool ConnectMud( struct MudState *state );
 void DestroyMud( struct MudState *mud );
-void MudBackscrollToWebsockets( struct MudState *mud, bool lock, bool lockUser );
+void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, bool lock, bool lockUser );
 
 #define SESSION_NAME_SIZE 64
 struct UserState {
@@ -68,6 +68,7 @@ struct UserState {
     time_t lastLogin;
     time_t thisLogin;
     time_t lastInput;
+    bool loopback;
     pthread_mutex_t *mutex;
 };
 
