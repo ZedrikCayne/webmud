@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 
-find_package(OpenSSL REQUIRED)
-
-
 project( webmud )
+
+find_package(OpenSSL)
 
 set( SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src )
 
