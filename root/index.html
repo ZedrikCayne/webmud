@@ -76,27 +76,25 @@ body,code,textarea {
     scrollbar-color: #404040 #808080;
     scrollbar-width: thin;
 }
+.scroll {
+    overflow-y: scroll;
+    overflow-y: scroll;
+}
 .output-area {
     min-height: 80vh;
     max-height: 80vh;
-    overflow-y: scroll;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
 .input-area {
     max-height: 20vh;
     min-height: 20vh;
-    overflow-y: scroll;
 }
 </style>
 </head>
 <body>
-    <div class="output-area">
-    <code id="outputDiv"></code>
-    </div>
-    <div class="input-area">
-    <textarea class="input-area" id="inputBox" type="text" autofocus></textarea><br></br>
-    </div>
+    <code class="output-area scroll" id="outputDiv"></code>
+    <textarea class="input-area scroll" id="inputBox" type="text" autofocus></textarea><br></br>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;

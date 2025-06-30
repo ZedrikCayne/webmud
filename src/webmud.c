@@ -172,7 +172,20 @@ static bool loopbackCommand( struct UserState *state, const char *line, int leng
 }
 
 static bool recallCommand( struct UserState *state, const char *line, int length ) {
-    return true;
+    char *temp = tempCopyWithNulls( line, length );
+    char *savePtr;
+    char *command = strtok_r( temp, " ", &savePtr );
+    char *index = strtok_r( NULL, " ", &savePtr );
+    if( index == NULL ) {
+        NullStringToWebsockets( state, "Recall command needs a number of lines.", true );
+        return true;
+    }
+    int numLines = strtol( index, NULL, 10 );
+    if( numLines == 0 ) return false;
+    if( state->front ) {
+        MudBackscrollToWebsockets( (struct UserState *)state->front->what, 5, NULL, true, true );
+    }
+    return false;
 }
 
 static struct commandToHandler commands[] = {
