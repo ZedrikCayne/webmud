@@ -64,9 +64,11 @@ static char *tempCopyWithNulls( const char *line, int length ) {
 
 static bool prevCommand( struct UserState *userState, const char *line, int length ) {
     LastWorld( userState );
+    return false;
 }
 static bool nextCommand( struct UserState *userState, const char *line, int length ) {
     NextWorld( userState );
+    return false;
 }
 static bool pickCommand( struct UserState *userState, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
@@ -77,6 +79,7 @@ static bool pickCommand( struct UserState *userState, const char *line, int leng
     if( index == NULL ) {
     }
     PickWorld( userState, which );
+    return false;
 }
 
 static bool infoCommand( struct UserState *userState, const char *line, int length ) {
@@ -169,6 +172,7 @@ static bool loopbackCommand( struct UserState *state, const char *line, int leng
 }
 
 static bool recallCommand( struct UserState *state, const char *line, int length ) {
+    return true;
 }
 
 static struct commandToHandler commands[] = {
@@ -207,6 +211,7 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
             }
         }
     }
+    return false;
 }
 
 #define SEND_FRAME(__WS__,__FRAME__,__GOTO__) if((__FRAME__)==NULL||CS_WS_pushFrame(__WS__,__FRAME__)) { goto __GOTO__; }
