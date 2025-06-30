@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <crankshaft/hashtable.h>
 #include <crankshaft/server.h>
 #include <crankshaft/socket.h>
@@ -8,6 +10,8 @@
 #include <crankshaft/json.h>
 #include <crankshaft/logger.h>
 #include <crankshaft/list.h>
+#include <crankshaft/util.h>
+
 #include "webmud.h"
 
 static struct CS_HashTable *cheapSessions = NULL;
@@ -30,10 +34,8 @@ bool cookieFilter( struct CS_ClientInfo *info ) {
         CS_LOG_TRACE("WEBMUD session cookie is %s", cookieValue );
         const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         if( currentSession != CS_HASHTABLE_ERROR && currentSession != NULL ) {
-            CS_LOG_TRACE("WEBMUD cookie in session table %s", cookieValue );
             return false;
         }
-        CS_LOG_TRACE("WEBMUD cookie not in session table %s", cookieValue );
     }
     return loginPageReturn(info);
 }
@@ -45,6 +47,151 @@ static struct CS_WebSocketFrame *backscrollToFrame( struct CS_WebSocket *ws,
     return returnFrame;
 }
 
+struct commandToHandler {
+    char *command;
+    int  commandLength;
+    bool (*executeMe)(struct UserState *user,const char *line, int length);
+};
+
+static char *tempCopyWithNulls( const char *line, int length ) {
+    char *copy = CS_tempBuffZero( length + 4 );
+    if( copy == NULL ) {
+        return NULL;
+    }
+    memcpy( copy, line, length );
+    return copy;
+}
+
+static bool prevCommand( struct UserState *userState, const char *line, int length ) {
+    LastWorld( userState );
+}
+static bool nextCommand( struct UserState *userState, const char *line, int length ) {
+    NextWorld( userState );
+}
+static bool pickCommand( struct UserState *userState, const char *line, int length ) {
+    char *temp = tempCopyWithNulls( line, length );
+    char *savePtr;
+    char *command = strtok_r( temp, " ", &savePtr );
+    char *index = strtok_r( NULL, " ", &savePtr );
+    int which = 0;
+    if( index == NULL ) {
+    }
+    PickWorld( userState, which );
+}
+
+static bool infoCommand( struct UserState *userState, const char *line, int length ) {
+    struct CS_StringBuilder *sb = CS_SB_create( 1024 );
+    if( !sb ) return true;
+    pthread_mutex_lock( userState->mutex );
+
+    CS_SB_append( sb, "======== " );
+
+    if( CS_listCount( userState->muds ) > 0 ) {
+        int currentIndex = 1;
+        CS_LIST_ITER( userState->muds, item ) {
+            struct MudState *mud = (struct MudState *)item->what;
+            if( mud ) {
+                CS_SB_printf( sb, "%d", currentIndex );
+                CS_SB_appendChar( sb, item == userState->front?'<':'[' );
+                CS_SB_append( sb, mud->name );
+                if( mud->linesWaiting ) CS_SB_appendChar( sb, '*' );
+                CS_SB_appendChar( sb, item == userState->front?'>':']' );
+            }
+            ++currentIndex;
+        } 
+    } else {
+        CS_SB_append( sb, "NO CONNECTIONS " );
+    }
+    CS_SB_append( sb, " ========\r\n" );
+    
+    TextToWebsockets( userState, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
+
+    pthread_mutex_unlock( userState->mutex );
+    return false;
+}
+
+static bool connectCommand( struct UserState *userState, const char *line, int length ) {
+    char *copy = tempCopyWithNulls( line, length );
+    char *savePtr;
+    char * command = strtok_r(copy, " ", &savePtr);
+    char * name = strtok_r(NULL, " ", &savePtr);
+    if( name == NULL ) {
+        NullStringToWebsockets( userState, "Connection needs a name.", true );
+        return true;
+    }
+    char * address = strtok_r(NULL, " ", &savePtr);
+    if( address == NULL ) {
+        NullStringToWebsockets( userState, "Need an address.", true );
+        return true;
+    }
+    char * port_str = strtok_r(NULL, " ", &savePtr);
+    if( port_str == NULL ) {
+        NullStringToWebsockets( userState, "Need a port number.", true );
+        return true;
+    }
+    long portNum = strtol( port_str, NULL, 10 );
+    if( portNum == 0 ) {
+        NullStringToWebsockets( userState, "Port was not a parseable number.", true );
+        return true;
+    }
+    char * ssl = strtok_r( NULL, " ", &savePtr );
+    bool wantSSL = false;
+    bool tlsV1 = false;
+    if( ssl ) {
+        wantSSL = strncmp(ssl,"ssl",3) == 0;
+        if( strncmp(ssl,"sslv1",5) == 0 ) {wantSSL=tlsV1=true;}
+        if( !wantSSL ) {
+            NullStringToWebsockets( userState, "Optional ssl argument bad, needs to be ssl or sslv1", true );
+            return true;
+        }
+    }
+    struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 4096, 400 );
+    if( !mud ) {
+        NullStringToWebsockets( userState, "Failed to create a connection.", true );
+        return true;
+    }
+    AddMud( userState, mud );
+    if( ConnectMud( mud ) ) {
+        NullStringToWebsockets( userState, "Failed to connect to remote.", true );
+        return true;
+    }
+    return false;
+}
+
+static struct commandToHandler commands[] = {
+    { "/info", 5, infoCommand },
+    { "/connect", 8, connectCommand },
+    { "/next", 5, nextCommand },
+    { "/prev", 5, prevCommand },
+    { "/pick", 5, pickCommand }
+};
+
+bool dealWithUserCommand( struct UserState *user, const char *line, int lineLength ) {
+    int numCommands = CS_ARRAY_SIZE( commands );
+    for( int i = 0; i < numCommands; ++i ) {
+        if( memcmp( line, commands[i].command, commands[i].commandLength ) == 0 ) {
+            return commands[i].executeMe( user, line, lineLength );
+        }
+    }
+    NullStringToWebsockets( user, CS_tempBuffSnprintf( 128, "Unrecognized Command: %.*s", lineLength, line ), true );
+    return true;
+}
+
+bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const struct CS_WebSocketFrame *frame ) {
+    if( frame->payload != NULL && *(char*)frame->payload == '/' ) {
+        dealWithUserCommand( user, frame->payload, frame->payloadLength );
+    } else {
+        //Insert text hitting a MUD instead.
+        if( user->front ) {
+            TextToFront( user, frame->payload, frame->payloadLength, true );
+        } else {
+            NullStringToWebsockets( user, "Not connected anywhere.", true );
+        }
+    }
+}
+
+#define SEND_FRAME(__WS__,__FRAME__,__GOTO__) if((__FRAME__)==NULL||CS_WS_pushFrame(__WS__,__FRAME__)) { goto __GOTO__; }
+
 bool websocket( struct CS_ClientInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
         const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
@@ -52,84 +199,34 @@ bool websocket( struct CS_ClientInfo *info ) {
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
         char *copyBuff = NULL;
-        struct Backscroll *bs = (struct Backscroll *)currentSession;
-        CS_LOG_INFO("Backscroll: %p", bs);
+        struct UserState *user = (struct UserState *)currentSession;
         int printLength = 0;
         char *tempbuff;
         const struct CS_ListItem *theItem;
         if( gws ) {
-            CS_LIST_ITER( bs->backscrollLines, anItem ) {
-                returnFrame = backscrollToFrame( gws, anItem );
-                if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                    goto ERROR_CLOSE;
-                }
-            }
+            AddWebsocket( user, gws );
+            struct CS_WebSocketFrame * nextFrame = NULL;
             while( true ) {
-                struct CS_WebSocketFrame * nextFrame = CS_WS_nextIncomingFrame( gws );
-                if( nextFrame == NULL ) return true;
+                nextFrame = CS_WS_nextIncomingFrame( gws );
+                if( nextFrame == NULL ) break;
                 switch( nextFrame->opcode ) {
                     //We must return a pong for any ping we get.
                     case CS_WS_OPCODE_PING:
-                        CS_LOG_TRACE("We got incoming ping. %s", CS_WS_describeFrame(nextFrame));
                         returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_PONG, false, nextFrame->payload, nextFrame->payloadLength );
-                        if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                            goto ERROR_CLOSE;
-                        }
-                        CS_LOG_INFO("Backscroll: %p", bs);
+                        SEND_FRAME( gws, returnFrame, ERROR_CLOSE );
                         returnFrame = NULL;
-                        
                         break;
                     case CS_WS_OPCODE_TEXT:
-                        CS_LOG_TRACE("Incoming text frame. %s", CS_WS_describeFrame(nextFrame));
-                        FeedBackscroll( bs, nextFrame->payload, nextFrame->payloadLength );
-                        tempbuff = CS_tempBuffSnprintf( 128, "BS: %d lines. first line:\r\n", CS_listCount( bs->backscrollLines ) );
-                        if( tempbuff ) {
-                            returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, tempbuff, strlen( tempbuff ) );
-                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                                goto ERROR_CLOSE;
-                            }
-                        }
-                        theItem = CS_listGetHead(bs->backscrollLines);
-                        if( theItem ) {
-                            returnFrame = backscrollToFrame( gws, theItem );
-                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                                goto ERROR_CLOSE;
-                            }
-                        }
-                        tempbuff = CS_tempBuffSnprintf( 128, "BS: last ~2 lines:\r\n", CS_listCount( bs->backscrollLines ) );
-                        if( tempbuff ) {
-                            returnFrame = CS_WS_createFrame( gws, CS_WS_OPCODE_TEXT, false, tempbuff, strlen( tempbuff ) );
-                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                                goto ERROR_CLOSE;
-                            }
-                        }
-                        theItem = CS_listGetTail( bs->backscrollLines );
-                        if( theItem && theItem->last ) theItem = theItem->last;
-                        if( theItem ) {
-                            returnFrame = backscrollToFrame( gws, theItem );
-                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                                goto ERROR_CLOSE;
-                            }
-                        }
-                        if( theItem && theItem->next ) {
-                            if( theItem->what ) CS_LOG_TRACE("LINE: %d %.*s", theItem->size, theItem->size, theItem->what);
-                            theItem = theItem->next;
-                            returnFrame = backscrollToFrame( gws, theItem );
-                            if( returnFrame == NULL || CS_WS_pushFrame( gws, returnFrame ) ) {
-                                goto ERROR_CLOSE;
-                            }
-                        }
-
-                        
+                        dealWithUserInput( gws, user, nextFrame );
                         break;
                     default:
-                        CS_LOG_TRACE( "%s", CS_WS_describeFrame( nextFrame ) );
                         break;
                 }
-
                 CS_WS_returnFrame( gws, nextFrame );
             }
 ERROR_CLOSE:
+            RemoveWebsocket( user, gws );
+            if( nextFrame ) CS_WS_returnFrame( gws, nextFrame );
             CS_WS_destroy( gws );
         }
     }
@@ -197,15 +294,13 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     }
     char *googleId = strndup( (char*)CS_jsonNodeValueAsTempString( subject ), 64 );
 
-
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
-        struct Backscroll *backscroll = CreateBackscroll( 32768, 500 );
-        CS_LOG_TRACE( "Backscroll %p", backscroll );
         sessionId = CS_uuid4String();
+        struct UserState *user = CreateUserState( sessionId  );
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
-        CS_hashtablePut( cheapSessions, sessionId, backscroll );
+        CS_hashtablePut( cheapSessions, sessionId, user );
     }
 
     CS_jwtFree( jwt );

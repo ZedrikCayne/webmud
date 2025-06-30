@@ -8,6 +8,7 @@
 #include <crankshaft/slaballoc.h>
 #include <crankshaft/socket.h>
 #include <crankshaft/uuid.h>
+#include <crankshaft/websocket.h>
 
 #include "webmud.h"
 
@@ -27,6 +28,7 @@ struct Backscroll {
     const char *currentStartOfLine;
     int currentLineLength;
     int numLines;
+    int numLinesPushed;
     pthread_mutex_t *backscrollMutex;
 };
 
@@ -34,25 +36,55 @@ struct Backscroll *CreateBackscroll( int size, int numLines );
 void DestroyBackscroll( struct Backscroll *backscroll );
 void FeedBackscroll( struct Backscroll *backscroll, const char *input, int inputLength );
 
+struct UserState;
+
 #define MUD_NAME_MAX 64
+#define MUD_ADDRESS_MAX 64
 struct MudState {
     char name[MUD_NAME_MAX];
+    char address[MUD_ADDRESS_MAX];
+    int port;
+    bool wantSSL;
+    bool tlsV1;
+    bool disconnected;
+    bool running;
+    int  linesWaiting;
     struct Backscroll *backscroll;
     struct CS_Socket *mudSocket;
+    struct UserState *user;
 };
 
-struct MudState *CreateMud( char *name, char *address, int port, int size, int numlines );
-struct MudState *DestroyMud( struct MudState *mud );
+struct MudState *CreateMud( struct UserState *user, char *name, char *address, int port, bool ssl, bool tlsV1, int size, int numlines );
+bool ConnectMud( struct MudState *state );
+void DestroyMud( struct MudState *mud );
+void MudBackscrollToWebsockets( struct MudState *mud, bool lock, bool lockUser );
 
 #define SESSION_NAME_SIZE 64
 struct UserState {
-    int currentMudState;
-    struct CS_List *mudStates;
+    const struct CS_ListItem *front;
+    struct CS_List *muds;
+    struct CS_List *websockets;
     char session[SESSION_NAME_SIZE];
+    time_t lastLogin;
+    time_t thisLogin;
+    time_t lastInput;
+    pthread_mutex_t *mutex;
 };
 
 struct UserState *CreateUserState( const char *sessionId );
 void DestroyUserState( struct UserState *userState );
+void TextToWebsockets( struct UserState *userState, const char *what, int length, bool lockUser );
+void NullStringToWebsockets( struct UserState *userState, const char *what, bool lockUser );
+bool AddWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
+bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
+bool AddMud( struct UserState *userState, struct MudState *mud );
+bool RemoveMud( struct UserState *userState, struct MudState *mud );
+bool TextToFront( struct UserState *userState, const char *what, int length, bool lock );
+bool NextWorld( struct UserState *userState );
+bool LastWorld( struct UserState *userState );
+bool PickWorld( struct UserState *userState, int index );
+
+
 #ifdef __cplusplus
 }
 #endif
