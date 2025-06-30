@@ -100,18 +100,22 @@ body,code,textarea {
         let oldTextToSend = null;
 
         inputBox.addEventListener( "keypress", function (event) {
+            console.log( event.key );
             if( event.key == "Enter" ) {
                 event.preventDefault();
                 sendBox();
             }
         }) ;
 
+        let maxBackscroll = 300;
+        let maxInputCache = 300;
         let backScroll = [];
         let inputCache = [];
+        let currentInputCacheIndex = 0;
 
         function messageEvent( event ) {
             console.log(event);
-            if( backScroll.length > 300 ) backScroll.shift();
+            if( backScroll.length > maxBackscroll ) backScroll.shift();
             backScroll.push( event.data );
 
             let tempString = "";
@@ -149,7 +153,6 @@ body,code,textarea {
 
         function sendText( theText ) {
             if( globalWebsocket == null ) startWebsocket();
-            if( oldTextToSend != null ) outputDiv.innerHTML = "Hold Your Horses...connecting.";
             globalWebsocket.send( theText + "\r\n" );
         }
 

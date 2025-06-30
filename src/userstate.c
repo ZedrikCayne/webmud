@@ -124,6 +124,7 @@ static bool privateAddLine( struct Backscroll *backscroll, const char *line, int
         } while( poppedItem != cutMeAndPreviousOff );
     }
     ++backscroll->numLinesPushed;
+    return false;
 }
 
 static bool AddLine( struct Backscroll *backscroll, const char *line, int lineLength ) {
@@ -132,20 +133,18 @@ static bool AddLine( struct Backscroll *backscroll, const char *line, int lineLe
     memcpy( copyTo, line, lineLength );
     //We've wrapped... stuff what was remaining
     if( copyTo < backscroll->currentStartOfLine ) {
-        CS_LOG_TRACE("Backscroll wrap.");
         privateAddLine( backscroll, backscroll->currentStartOfLine, backscroll->currentLineLength );
         backscroll->currentStartOfLine = NULL;
     }
     const char *realStart = copyTo;
     int realLineLength = lineLength;
     if( backscroll->currentStartOfLine ) {
-        CS_LOG_TRACE("Concat 'lines')");
         realStart = backscroll->currentStartOfLine;
         realLineLength += backscroll->currentLineLength;
         backscroll->currentStartOfLine = NULL;
     }
-    CS_LOG_TRACE("Add Line.");
     privateAddLine( backscroll, realStart, realLineLength );
+    return false;
 }
 
 void FeedBackscroll( struct Backscroll *backscroll, const char *input, int inputLength ) {
@@ -189,6 +188,8 @@ struct MudState *CreateMud( struct UserState *user, char *name, char *address, i
 
 void DestroyMud( struct MudState *mud ) {
     if( mud ) {
+        if( mud->running ) DisconnectMud( mud );
+        while( mud->running ) sleep( 20 );
         if( mud->backscroll ) DestroyBackscroll( mud->backscroll );
         memset( mud, 0, sizeof( struct MudState ) );
     }
@@ -197,17 +198,17 @@ void DestroyMud( struct MudState *mud ) {
 void *consumeThread(void *var) {
     struct MudState *mud = (struct MudState *)var;
     mud->running = true;
-    while( 1 ) {
+    while( true ) {
         int lastLine = mud->backscroll->numLinesPushed;
         //This socket has no mutexes on input or output.
         int numBytesRead = CS_socketFillIncomingBuffer( mud->mudSocket, false );
         if( numBytesRead == -1 ) {
-            CS_socketDestroy( mud->mudSocket );
+            if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
             mud->mudSocket = NULL;
             mud->disconnected = true;
             break;
         }
-        if( numBytesRead > 0 ) {
+        if( mud->mudSocket && numBytesRead > 0 ) {
             struct CS_PushPullBuffer *pp = CS_socketLockInputBuffer( mud->mudSocket );
             FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
             CS_PP_reset( pp );
@@ -233,6 +234,13 @@ bool ConnectMud( struct MudState *mud ) {
         return true;
     }
     pthread_detach( newThread );
+    return false;
+}
+
+bool DisconnectMud( struct MudState *mud ) {
+    if( !mud ) return true;
+    if( mud->mudSocket == NULL || !mud->running ) return false;
+    CS_socketClose( mud->mudSocket );
     return false;
 }
 
@@ -433,7 +441,7 @@ static void setNewFront( struct UserState *userState, const struct CS_ListItem *
         }
     }
 }
-bool NextWorld( struct UserState *userState ) {
+bool NextConnection( struct UserState *userState ) {
     pthread_mutex_lock( userState->mutex );
 
     const struct CS_ListItem *next = NULL;
@@ -449,7 +457,7 @@ bool NextWorld( struct UserState *userState ) {
     pthread_mutex_unlock( userState->mutex );
     return false;
 }
-bool LastWorld( struct UserState *userState ) {
+bool LastConnection( struct UserState *userState ) {
     pthread_mutex_lock( userState->mutex );
 
     const struct CS_ListItem *next = NULL;
@@ -465,7 +473,8 @@ bool LastWorld( struct UserState *userState ) {
     pthread_mutex_unlock( userState->mutex );
     return false;
 }
-bool PickWorld( struct UserState *userState, int index ) {
+
+bool PickConnection( struct UserState *userState, int index ) {
     pthread_mutex_lock( userState->mutex );
 
     const struct CS_ListItem *next = CS_listGetByIndex( userState->muds, index );
@@ -475,3 +484,66 @@ bool PickWorld( struct UserState *userState, int index ) {
     pthread_mutex_unlock( userState->mutex );
     return false;
 }
+
+struct MudState *MudStateByName( struct UserState *userState, const char *name ) {
+    pthread_mutex_lock( userState->mutex );
+
+    CS_LIST_ITER( userState->muds, item ) {
+        struct MudState *mud = (struct MudState *)item->what;
+        if( strncmp( name, mud->name, MUD_NAME_MAX ) == 0 ) {
+            pthread_mutex_unlock( userState->mutex );
+            return mud;
+        }
+    }
+    pthread_mutex_unlock( userState->mutex );
+    return NULL;
+}
+
+bool PutMudFront( struct UserState *userState, struct MudState *mudState ) {
+    pthread_mutex_lock( userState->mutex );
+    CS_LIST_ITER( userState->muds, item ) {
+        if( mudState == item->what ) {
+            setNewFront( userState, item );
+            break;
+        }
+    }
+    pthread_mutex_unlock( userState->mutex );
+    return false;
+}
+
+
+bool DisconnectFront( struct UserState *userState ) {
+    if( userState == NULL ) return true;
+    pthread_mutex_lock( userState->mutex );
+
+    if( !userState->front || !userState->front->what ) {
+        pthread_mutex_unlock( userState->mutex );
+        return true;
+    }
+
+    DisconnectMud( (struct MudState *)userState->front->what );
+
+    pthread_mutex_unlock( userState->mutex );
+    return false;
+}
+
+bool DeleteFront( struct UserState *userState ) {
+    if( userState == NULL ) return true;
+    pthread_mutex_lock( userState->mutex );
+    if( !userState->front || !userState->front->what ) {
+        pthread_mutex_unlock( userState->mutex );
+        return true;
+    }
+    struct MudState *mud = (struct MudState *)userState->front->what;
+    DisconnectMud( mud );
+    while( !mud->disconnected ) sleep( 20 );
+    DestroyMud( mud );
+    const struct CS_ListItem *next = userState->front->next;
+    if( !next ) next = userState->front->last;
+    CS_listRemove( userState->muds, userState->front );
+    userState->front = next;
+    pthread_mutex_unlock( userState->mutex );
+    return false;
+}
+
+

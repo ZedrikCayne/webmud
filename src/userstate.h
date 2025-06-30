@@ -57,6 +57,7 @@ struct MudState {
 struct MudState *CreateMud( struct UserState *user, char *name, char *address, int port, bool ssl, bool tlsV1, int size, int numlines );
 bool ConnectMud( struct MudState *state );
 void DestroyMud( struct MudState *mud );
+bool DisconnectMud( struct MudState *mud );
 void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, bool lock, bool lockUser );
 
 #define SESSION_NAME_SIZE 64
@@ -81,9 +82,13 @@ bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
 bool AddMud( struct UserState *userState, struct MudState *mud );
 bool RemoveMud( struct UserState *userState, struct MudState *mud );
 bool TextToFront( struct UserState *userState, const char *what, int length, bool lock );
-bool NextWorld( struct UserState *userState );
-bool LastWorld( struct UserState *userState );
-bool PickWorld( struct UserState *userState, int index );
+bool NextConnection( struct UserState *userState );
+bool LastConnection( struct UserState *userState );
+bool PickConnection( struct UserState *userState, int index );
+bool DisconnectFront( struct UserState *userState );
+bool DeleteFront( struct UserState *userService );
+struct MudState *MudStateByName( struct UserState *userState, const char *name );
+bool PutMudFront( struct UserState *userState, struct MudState *mudState );
 
 
 #ifdef __cplusplus
