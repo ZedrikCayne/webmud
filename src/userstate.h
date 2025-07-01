@@ -29,7 +29,7 @@ struct Backscroll {
     int currentLineLength;
     int numLines;
     int numLinesPushed;
-    pthread_mutex_t *backscrollMutex;
+    struct CS_Mutex *backscrollMutex;
 };
 
 struct Backscroll *CreateBackscroll( int size, int numLines );
@@ -70,7 +70,7 @@ struct UserState {
     time_t thisLogin;
     time_t lastInput;
     bool loopback;
-    pthread_mutex_t *mutex;
+    struct CS_Mutex *mutex;
 };
 
 struct UserState *CreateUserState( const char *sessionId );

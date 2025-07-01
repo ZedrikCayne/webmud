@@ -86,7 +86,7 @@ static bool pickCommand( struct UserState *userState, const char *line, int leng
 static bool infoCommand( struct UserState *userState, const char *line, int length ) {
     struct CS_StringBuilder *sb = CS_SB_create( 1024 );
     if( !sb ) return true;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     CS_SB_append( sb, "info:\r\n" );
 
@@ -109,7 +109,7 @@ static bool infoCommand( struct UserState *userState, const char *line, int leng
     
     TextToWebsockets( userState, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 

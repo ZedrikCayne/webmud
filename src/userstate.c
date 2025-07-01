@@ -76,7 +76,7 @@ struct Backscroll *CreateBackscroll( int size, int numLines ) {
     if( returnValue->backscrollSlabs == NULL ) goto CREATE_BACKSCROLL_ERROR;
     returnValue->backscrollBuffer = CS_tempAllocManual("BACKSCROLL", size);
     if( returnValue->backscrollBuffer == NULL ) goto CREATE_BACKSCROLL_ERROR;
-    returnValue->backscrollMutex = CS_mutexGrab();
+    returnValue->backscrollMutex = CS_mutexTakeNamed("BACKSCROLL MUTEX");
     if( returnValue->backscrollMutex == NULL ) goto CREATE_BACKSCROLL_ERROR;
 
     return returnValue;
@@ -87,11 +87,12 @@ CREATE_BACKSCROLL_ERROR:
 
 void DestroyBackscroll( struct Backscroll *backscroll ) {
     if( backscroll == NULL ) return;
-    CS_listDestroy( backscroll->backscrollLines );
-    CS_slabFree( backscroll->backscrollSlabs );
-    CS_tempFreeManual( backscroll->backscrollBuffer );
-    CS_mutexReturn( backscroll->backscrollMutex );
-    CS_free( backscroll );
+    if( backscroll->backscrollLines ) CS_listDestroy( backscroll->backscrollLines );
+    if( backscroll->backscrollSlabs ) CS_slabFree( backscroll->backscrollSlabs );
+    if( backscroll->backscrollBuffer ) CS_tempFreeManual( backscroll->backscrollBuffer );
+    if( backscroll->backscrollMutex ) CS_mutexReturn( backscroll->backscrollMutex );
+    memset( backscroll, 0, sizeof(struct Backscroll) );
+    privateReturnBackscroll( backscroll );
 }
 
 #define LF '\n'
@@ -151,7 +152,7 @@ void FeedBackscroll( struct Backscroll *backscroll, const char *input, int input
     const char *current = input;
     const char *startOfInput = input;
     int currentStartIndex = 0;
-    pthread_mutex_lock( backscroll->backscrollMutex );
+    CS_mutexLock( backscroll->backscrollMutex );
     for( int i = 0; i < inputLength; ++i ) {
         if( !startOfInput ) startOfInput = current;
         if( *current == LF ) {
@@ -167,7 +168,7 @@ void FeedBackscroll( struct Backscroll *backscroll, const char *input, int input
         backscroll->currentStartOfLine = NULL;
         backscroll->currentLineLength = 0;
     }
-    pthread_mutex_unlock( backscroll->backscrollMutex );
+    CS_mutexUnlock( backscroll->backscrollMutex );
 }
 
 struct MudState *CreateMud( struct UserState *user, char *name, char *address, int port, bool ssl, bool tlsV1, int size, int numlines ) {
@@ -189,9 +190,10 @@ struct MudState *CreateMud( struct UserState *user, char *name, char *address, i
 void DestroyMud( struct MudState *mud ) {
     if( mud ) {
         if( mud->running ) DisconnectMud( mud );
-        while( mud->running ) sleep( 20 );
+        //while( mud->running ) sleep( 20 );
         if( mud->backscroll ) DestroyBackscroll( mud->backscroll );
         memset( mud, 0, sizeof( struct MudState ) );
+        privateReturnMudState( mud );
     }
 }
 
@@ -202,7 +204,7 @@ void *consumeThread(void *var) {
         int lastLine = mud->backscroll->numLinesPushed;
         //This socket has no mutexes on input or output.
         int numBytesRead = CS_socketFillIncomingBuffer( mud->mudSocket, false );
-        if( numBytesRead == -1 ) {
+        if( numBytesRead < 0 ) {
             if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
             mud->mudSocket = NULL;
             mud->disconnected = true;
@@ -254,7 +256,7 @@ struct UserState *CreateUserState( const char *sessionId ) {
         if( returnValue->websockets == NULL ) goto USER_STATE_ERROR;
         returnValue->lastLogin = 0;
         returnValue->thisLogin = returnValue->lastLogin = time(NULL);
-        returnValue->mutex = CS_mutexGrab();
+        returnValue->mutex = CS_mutexTakeNamed("USER STATE");
         if( returnValue->mutex == NULL ) goto USER_STATE_ERROR;
     }
     
@@ -285,9 +287,9 @@ void DestroyUserState( struct UserState *userState ) {
 }
 
 void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, bool lock, bool lockUser ) {
-    pthread_mutex_t *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
+    struct CS_Mutex *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
     if( mutex ) {
-        if( lock ) pthread_mutex_lock(mutex);
+        if( lock ) CS_mutexLock(mutex);
         if( mud->linesWaiting > 0 || number != 0) {
             int currentWaiting = number!=0?-number:-mud->linesWaiting;
             const struct CS_ListItem *backscrollItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
@@ -301,13 +303,13 @@ void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, 
                 backscrollItem = backscrollItem->next;
             }
         }
-        if( lock ) pthread_mutex_unlock(mutex);
+        if( lock ) CS_mutexUnlock(mutex);
     }
 }
 
 void TextToWebsockets( struct UserState *userState, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
-    if( lockUser ) pthread_mutex_lock( userState->mutex );
+    if( lockUser ) CS_mutexLock( userState->mutex );
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws ) {
@@ -315,7 +317,7 @@ void TextToWebsockets( struct UserState *userState, const char *what, int length
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
-    if( lockUser ) pthread_mutex_unlock( userState->mutex );
+    if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
 
 #define MAX_ACCEPTABLE_STRING 32767
@@ -333,16 +335,16 @@ void NullStringToWebsockets( struct UserState *userState, const char *what, bool
 bool AddWebsocket( struct UserState *userState, struct CS_WebSocket *ws ) {
     if( !userState || !ws ) return true;
     bool returnValue = false;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
     returnValue = CS_listPushTail( userState->websockets, ws, 0 );
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return returnValue;
 }
 
 bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws ) {
     if( !userState || !ws ) return true;
     const struct CS_ListItem *removeMe = NULL;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
     CS_LIST_ITER( userState->websockets, item ) {
         if( item->what == (void*)ws ) {
             removeMe = item;
@@ -353,16 +355,16 @@ bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws ) {
     if( removeMe ) {
         returnValue = CS_listRemove( userState->websockets, removeMe );
     }
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return returnValue;
 }
 
 bool TextToFront( struct UserState *userState, const char *what, int length, bool lock ) {
     if( !userState || !userState->mutex || !userState->front ) return true;
-    if( lock ) pthread_mutex_lock( userState->mutex );
+    if( lock ) CS_mutexLock( userState->mutex );
     struct MudState *mud = (struct MudState *)userState->front->what;
     if( !mud || !mud->mudSocket ) {
-        if( lock ) pthread_mutex_unlock( userState->mutex );
+        if( lock ) CS_mutexUnlock( userState->mutex );
         return true;
     }
     const char *current = what;
@@ -387,7 +389,7 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
         bytesSent += bytesWrittenToSocket;
     }
     CS_socketUnlockOutputBuffer( mud->mudSocket );
-    if( lock ) pthread_mutex_unlock( userState->mutex );
+    if( lock ) CS_mutexUnlock( userState->mutex );
     if( bytesSent < length )
         return true;
 
@@ -396,19 +398,19 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
 
 bool AddMud( struct UserState *userState, struct MudState *mud ) {
     if( !userState || !mud ) return true;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     CS_listPushTail( userState->muds, mud, 0 );
     userState->front = CS_listGetTail( userState->muds );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 
 bool RemoveMud( struct UserState *userState, struct MudState *mud ) {
     if( userState == NULL || mud == NULL ) return true;
     const struct CS_ListItem *removeMe = NULL;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
     CS_LIST_ITER( userState->muds, item ) {
         if( item->what == (void*)mud ) {
             removeMe = item;
@@ -426,7 +428,7 @@ bool RemoveMud( struct UserState *userState, struct MudState *mud ) {
         }
         returnValue = CS_listRemove( userState->muds, removeMe );
     }
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return returnValue;
 }
 static void setNewFront( struct UserState *userState, const struct CS_ListItem *next ) {
@@ -442,7 +444,7 @@ static void setNewFront( struct UserState *userState, const struct CS_ListItem *
     }
 }
 bool NextConnection( struct UserState *userState ) {
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     const struct CS_ListItem *next = NULL;
 
@@ -454,11 +456,11 @@ bool NextConnection( struct UserState *userState ) {
 
     setNewFront( userState, next );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 bool LastConnection( struct UserState *userState ) {
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     const struct CS_ListItem *next = NULL;
 
@@ -470,79 +472,78 @@ bool LastConnection( struct UserState *userState ) {
 
     setNewFront( userState, next );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 
 bool PickConnection( struct UserState *userState, int index ) {
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     const struct CS_ListItem *next = CS_listGetByIndex( userState->muds, index );
 
     setNewFront( userState, next );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 
 struct MudState *MudStateByName( struct UserState *userState, const char *name ) {
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     CS_LIST_ITER( userState->muds, item ) {
         struct MudState *mud = (struct MudState *)item->what;
         if( strncmp( name, mud->name, MUD_NAME_MAX ) == 0 ) {
-            pthread_mutex_unlock( userState->mutex );
+            CS_mutexUnlock( userState->mutex );
             return mud;
         }
     }
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return NULL;
 }
 
 bool PutMudFront( struct UserState *userState, struct MudState *mudState ) {
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
     CS_LIST_ITER( userState->muds, item ) {
         if( mudState == item->what ) {
             setNewFront( userState, item );
             break;
         }
     }
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 
 
 bool DisconnectFront( struct UserState *userState ) {
     if( userState == NULL ) return true;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
 
     if( !userState->front || !userState->front->what ) {
-        pthread_mutex_unlock( userState->mutex );
+        CS_mutexUnlock( userState->mutex );
         return true;
     }
 
     DisconnectMud( (struct MudState *)userState->front->what );
 
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 
 bool DeleteFront( struct UserState *userState ) {
     if( userState == NULL ) return true;
-    pthread_mutex_lock( userState->mutex );
+    CS_mutexLock( userState->mutex );
     if( !userState->front || !userState->front->what ) {
-        pthread_mutex_unlock( userState->mutex );
+        CS_mutexUnlock( userState->mutex );
         return true;
     }
     struct MudState *mud = (struct MudState *)userState->front->what;
     DisconnectMud( mud );
-    while( !mud->disconnected ) sleep( 20 );
     DestroyMud( mud );
     const struct CS_ListItem *next = userState->front->next;
     if( !next ) next = userState->front->last;
     CS_listRemove( userState->muds, userState->front );
     userState->front = next;
-    pthread_mutex_unlock( userState->mutex );
+    CS_mutexUnlock( userState->mutex );
     return false;
 }
 

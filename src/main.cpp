@@ -24,6 +24,7 @@
 
 #include <crankshaft/websocket.h>
 #include <crankshaft/socket.h>
+#include <crankshaft/mutex.h>
 
 #include "userstate.h"
 
@@ -112,6 +113,11 @@ void PrintHeader() {
 static bool GotInterrupt = false;
 static bool GotHup = false;
 
+static void pipeHandler(int sig) {
+    signal(sig, SIG_IGN);
+    signal(SIGPIPE, pipeHandler);
+}
+
 static void terminateHandler(int sig) {
     signal(sig, SIG_IGN);
     GotInterrupt = true;
@@ -189,6 +195,8 @@ int main(int argc, char *argv[] ) {
         return -1;
     }
 
+    //CS_mutexDebug(true);
+
     startApplication();
     CS_LOG_INFO("Server Name: %s", serverName);
     CS_LOG_INFO("Port Number is %d", portNum);
@@ -196,6 +204,7 @@ int main(int argc, char *argv[] ) {
     signal(SIGINT, interruptHandler);
     signal(SIGHUP, hupHandler);
     signal(SIGTERM, terminateHandler);
+    signal(SIGPIPE, pipeHandler);
 
     CS_LOG_INFO("Starting web server.");
     const struct CS_Storage *keysCacheBackingStorage = CS_storageOpen( "KEY_WEB_CACHE", "file=/tmp/crankshaft_key.sqlite", CS_STORAGE_BACKEND_SQLITE );
