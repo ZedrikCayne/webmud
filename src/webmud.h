@@ -15,6 +15,7 @@ void killApplication();
 
 //Filter for session cookie. Returns a login page if cookie does not exist.
 bool cookieFilter( struct CS_ClientInfo *info );
+//The login page
 bool loginPageReturn( struct CS_ClientInfo *info );
 //Page that redirects to / while setting the session cookie
 bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie );

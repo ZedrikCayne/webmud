@@ -50,7 +50,7 @@ static struct CS_WebSocketFrame *backscrollToFrame( struct CS_WebSocket *ws,
 struct commandToHandler {
     char *command;
     int  commandLength;
-    bool (*executeMe)(struct UserState *user,const char *line, int length);
+    bool (*executeMe)(struct CS_WebSocket *ws, struct UserState *user,const char *line, int length);
 };
 
 static char *tempCopyWithNulls( const char *line, int length ) {
@@ -62,15 +62,15 @@ static char *tempCopyWithNulls( const char *line, int length ) {
     return copy;
 }
 
-static bool prevCommand( struct UserState *userState, const char *line, int length ) {
+static bool prevCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     LastConnection( userState );
     return false;
 }
-static bool nextCommand( struct UserState *userState, const char *line, int length ) {
+static bool nextCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     NextConnection( userState );
     return false;
 }
-static bool pickCommand( struct UserState *userState, const char *line, int length ) {
+static bool pickCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
     char *savePtr;
     char *command = strtok_r( temp, " ", &savePtr );
@@ -83,12 +83,14 @@ static bool pickCommand( struct UserState *userState, const char *line, int leng
     return false;
 }
 
-static bool infoCommand( struct UserState *userState, const char *line, int length ) {
+static bool infoCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     struct CS_StringBuilder *sb = CS_SB_create( 1024 );
     if( !sb ) return true;
     CS_mutexLock( userState->mutex );
 
     CS_SB_append( sb, "info:\r\n" );
+
+    CS_SB_printf( sb, "Num Connections: %d\r\n", CS_listCount( userState->websockets ) );
 
     if( CS_listCount( userState->muds ) > 0 ) {
         int currentIndex = 1;
@@ -107,13 +109,13 @@ static bool infoCommand( struct UserState *userState, const char *line, int leng
         CS_SB_append( sb, "no connections\r\n" );
     }
     
-    TextToWebsockets( userState, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
+    TextToWebsockets( userState, ws, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
 
     CS_mutexUnlock( userState->mutex );
     return false;
 }
 
-static bool connectCommand( struct UserState *userState, const char *line, int length ) {
+static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     char *copy = tempCopyWithNulls( line, length );
     char *savePtr;
     char * command = strtok_r(copy, " ", &savePtr);
@@ -123,15 +125,15 @@ static bool connectCommand( struct UserState *userState, const char *line, int l
             struct MudState *mud = (struct MudState*)userState->front->what;
             if( mud->disconnected ) {
                 if( ConnectMud( mud ) ) {
-                    NullStringToWebsockets( userState, "Failed to connect to remote.", true );
+                    NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
                     return true;
                 }
             } else {
-                NullStringToWebsockets( userState, CS_tempBuffSnprintf( 128, "Still connected to %s.", mud->name), true );
+                NullStringToWebsockets( userState, ws, CS_tempBuffSnprintf( 128, "Still connected to %s.", mud->name), true );
                 return true;
             }
         }
-        NullStringToWebsockets( userState, "Connection needs a name.", true );
+        NullStringToWebsockets( userState, ws, "Connection needs a name.", true );
         return true;
     }
     struct MudState *currentNamed = MudStateByName( userState, name );
@@ -141,29 +143,29 @@ static bool connectCommand( struct UserState *userState, const char *line, int l
             PutMudFront( userState, currentNamed );
             if( currentNamed->disconnected ) {
                 if( ConnectMud( currentNamed ) ) {
-                    NullStringToWebsockets( userState, "Could not connect to remote.", true );
+                    NullStringToWebsockets( userState, ws, "Could not connect to remote.", true );
                     return true;
                 }
             }
             return false;
         }
-        NullStringToWebsockets( userState, "Need an address.", true );
+        NullStringToWebsockets( userState, ws, "Need an address.", true );
         return true;
     } else {
         if( currentNamed ) {
-            NullStringToWebsockets( userState,
+            NullStringToWebsockets( userState, ws,
                    CS_tempBuffSnprintf( 128, "Already have a connection named %s", name ), true );
             return true;
         }
     }
     char * port_str = strtok_r(NULL, " ", &savePtr);
     if( port_str == NULL ) {
-        NullStringToWebsockets( userState, "Need a port number.", true );
+        NullStringToWebsockets( userState, ws, "Need a port number.", true );
         return true;
     }
     long portNum = strtol( port_str, NULL, 10 );
     if( portNum == 0 ) {
-        NullStringToWebsockets( userState, "Port was not a parseable number.", true );
+        NullStringToWebsockets( userState, ws, "Port was not a parseable number.", true );
         return true;
     }
     char * ssl = strtok_r( NULL, " ", &savePtr );
@@ -173,59 +175,64 @@ static bool connectCommand( struct UserState *userState, const char *line, int l
         wantSSL = strncmp(ssl,"ssl",3) == 0;
         if( strncmp(ssl,"sslv1",5) == 0 ) {wantSSL=tlsV1=true;}
         if( !wantSSL ) {
-            NullStringToWebsockets( userState, "Optional ssl argument bad, needs to be ssl or sslv1", true );
+            NullStringToWebsockets( userState, ws, "Optional ssl argument bad, needs to be ssl or sslv1", true );
             return true;
         }
     }
     struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 4096, 400 );
     if( !mud ) {
-        NullStringToWebsockets( userState, "Failed to create a connection.", true );
+        NullStringToWebsockets( userState, ws, "Failed to create a connection.", true );
         return true;
     }
     AddMud( userState, mud );
     if( ConnectMud( mud ) ) {
-        NullStringToWebsockets( userState, "Failed to connect to remote.", true );
+        NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
         return true;
     }
     return false;
 }
 
-static bool loopbackCommand( struct UserState *state, const char *line, int length ) {
+static bool loopbackCommand( struct CS_WebSocket *ws, struct UserState *state, const char *line, int length ) {
     state->loopback = !state->loopback;
     if( state->loopback ) {
-        NullStringToWebsockets( state, "Loopback mode on. All text sent just comes right back.", true );
+        NullStringToWebsockets( state, NULL, "Loopback mode on. All text sent just comes right back.", true );
     } else {
-        NullStringToWebsockets( state, "Loopback mode off.", true );
+        NullStringToWebsockets( state, NULL, "Loopback mode off.", true );
     }
     return false;
 }
 
-static bool recallCommand( struct UserState *state, const char *line, int length ) {
+static bool recallCommand( struct CS_WebSocket *ws, struct UserState *state, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
     char *savePtr;
     char *command = strtok_r( temp, " ", &savePtr );
     char *index = strtok_r( NULL, " ", &savePtr );
     if( !state || !state->front || !state->front->what ) return true;
     if( index == NULL ) {
-        NullStringToWebsockets( state, "Recall command needs a number of lines.", true );
+        NullStringToWebsockets( state, ws, "Recall command needs a number of lines.", true );
         return true;
     }
     int numLines = strtol( index, NULL, 10 );
     if( numLines == 0 ) return false;
     char *filter = strtok_r( NULL, " ", &savePtr );
-    MudBackscrollToWebsockets( (struct MudState *)state->front->what, numLines, filter, true, true );
+    MudBackscrollToWebsockets( (struct MudState *)state->front->what, ws, numLines, filter, true, true );
     return false;
 }
 
-static bool disconnectCommand( struct UserState *userState, const char *line, int length ) {
+static bool disconnectCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     
     DisconnectFront( userState );
 
     return false;
 }
 
-bool killCommand( struct UserState *userState, const char *line, int lineLength ) {
+bool killCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
     DeleteFront( userState );
+    return false;
+}
+
+bool kickCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    DisconnectOthers( userState, ws );
     return false;
 }
 
@@ -239,32 +246,33 @@ static struct commandToHandler commands[] = {
     { "/recall", 7, recallCommand },
     { "/dc", 3, disconnectCommand },
     { "/disconnect", 11, disconnectCommand },
-    { "/kill", 5, killCommand }
+    { "/kill", 5, killCommand },
+    { "/kick", 5, kickCommand }
 };
 
-bool dealWithUserCommand( struct UserState *user, const char *line, int lineLength ) {
+bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {
     int numCommands = CS_ARRAY_SIZE( commands );
     for( int i = 0; i < numCommands; ++i ) {
         if( memcmp( line, commands[i].command, commands[i].commandLength ) == 0 ) {
-            return commands[i].executeMe( user, line, lineLength );
+            return commands[i].executeMe( ws, user, line, lineLength );
         }
     }
-    NullStringToWebsockets( user, CS_tempBuffSnprintf( 128, "Unrecognized Command: %.*s", lineLength, line ), true );
+    NullStringToWebsockets( user, NULL, CS_tempBuffSnprintf( 128, "Unrecognized Command: %.*s", lineLength, line ), true );
     return true;
 }
 
 bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const struct CS_WebSocketFrame *frame ) {
     if( frame->payload != NULL && *(char*)frame->payload == '/' ) {
-        dealWithUserCommand( user, frame->payload, frame->payloadLength );
+        dealWithUserCommand( ws, user, frame->payload, frame->payloadLength );
     } else {
         //Testing loopback state.
         if( user->loopback ) {
-            TextToWebsockets( user, frame->payload, frame->payloadLength, true );
+            TextToWebsockets( user, NULL, frame->payload, frame->payloadLength, true );
         } else {
             if( user->front ) {
                 TextToFront( user, frame->payload, frame->payloadLength, true );
             } else {
-                NullStringToWebsockets( user, "Not connected anywhere.", true );
+                NullStringToWebsockets( user, NULL, "Not connected anywhere.", true );
             }
         }
     }
@@ -298,7 +306,8 @@ bool websocket( struct CS_ClientInfo *info ) {
                         returnFrame = NULL;
                         break;
                     case CS_WS_OPCODE_TEXT:
-                        dealWithUserInput( gws, user, nextFrame );
+                        if( dealWithUserInput( gws, user, nextFrame ) )
+                            goto ERROR_CLOSE;
                         break;
                     default:
                         break;

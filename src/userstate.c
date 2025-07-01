@@ -216,7 +216,7 @@ void *consumeThread(void *var) {
             CS_PP_reset( pp );
             CS_socketUnlockInputBuffer( mud->mudSocket );
             mud->linesWaiting += mud->backscroll->numLinesPushed - lastLine;
-            if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, 0, NULL, true, true );
+            if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
         }
     }
     mud->running = false;
@@ -286,7 +286,7 @@ void DestroyUserState( struct UserState *userState ) {
     }
 }
 
-void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, bool lock, bool lockUser ) {
+void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only, int number, char *filter, bool lock, bool lockUser ) {
     struct CS_Mutex *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
     if( mutex ) {
         if( lock ) CS_mutexLock(mutex);
@@ -299,7 +299,7 @@ void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, 
             }
             while( backscrollItem ) {
                 struct BackscrollLine *current = (struct BackscrollLine *)backscrollItem->what;
-                TextToWebsockets( mud->user, current->head, current->size, lockUser );
+                TextToWebsockets( mud->user, only, current->head, current->size, lockUser );
                 backscrollItem = backscrollItem->next;
             }
         }
@@ -307,12 +307,12 @@ void MudBackscrollToWebsockets( struct MudState *mud, int number, char *filter, 
     }
 }
 
-void TextToWebsockets( struct UserState *userState, const char *what, int length, bool lockUser ) {
+void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
-        if( ws ) {
+        if( ws && (!only || ws == only) ) {
             struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_TEXT, false, what, length);
             CS_WS_pushFrame( ws, returnFrame );
         }
@@ -321,14 +321,14 @@ void TextToWebsockets( struct UserState *userState, const char *what, int length
 }
 
 #define MAX_ACCEPTABLE_STRING 32767
-void NullStringToWebsockets( struct UserState *userState, const char *what, bool lockUser ) {
+void NullStringToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, bool lockUser ) {
     int nLen = strnlen( what, MAX_ACCEPTABLE_STRING );
     if( nLen <= MAX_ACCEPTABLE_STRING ) {
         char * copyTo = CS_tempBuffZero( nLen + 4 );
         memcpy( copyTo, what, nLen );
         copyTo[nLen] = '\r';
         copyTo[nLen+1] = '\n';
-        TextToWebsockets( userState, copyTo, nLen+2, lockUser );
+        TextToWebsockets( userState, only, copyTo, nLen+2, lockUser );
     }
 }
 
@@ -436,10 +436,10 @@ static void setNewFront( struct UserState *userState, const struct CS_ListItem *
         userState->front = next;
         if( next ) {
             struct MudState *state = (struct MudState *)userState->front->what;
-            NullStringToWebsockets( userState, CS_tempBuffSnprintf( 128, "==== %s ====", state->name ), false );
-            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, 0, NULL, false, false );
+            NullStringToWebsockets( userState, NULL, CS_tempBuffSnprintf( 128, "Switched to %s.", state->name ), false );
+            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, NULL, 0, NULL, false, false );
         } else {
-            NullStringToWebsockets( userState, "==== NO WORLD ====", false );
+            NullStringToWebsockets( userState, NULL, "Switched to NO WORLD.", false );
         }
     }
 }
@@ -547,4 +547,15 @@ bool DeleteFront( struct UserState *userState ) {
     return false;
 }
 
+bool DisconnectOthers( struct UserState *userState, struct CS_WebSocket *ws ) {
+    CS_mutexLock( userState->mutex );
+    CS_LIST_ITER( userState->websockets, item ) {
+        struct CS_WebSocket *checkWs = (struct CS_WebSocket *)item->what;
+        if( checkWs != ws ) {
+            CS_WS_close( checkWs, CS_WS_CLOSE_NORMAL );
+        }
+    }
+    CS_mutexUnlock( userState->mutex );
+    return false;
+}
 
