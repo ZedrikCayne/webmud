@@ -19,6 +19,8 @@ static struct CS_HashTable *googleIdToSessionId = NULL;
 
 static bool appAutoLogin;
 
+static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+
 bool startApplication(bool autoLogin) {
     appAutoLogin = autoLogin;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
@@ -168,8 +170,8 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
         return true;
     }
     long portNum = strtol( port_str, NULL, 10 );
-    if( portNum == 0 ) {
-        NullStringToWebsockets( userState, ws, "Port was not a parseable number.", true );
+    if( portNum < 1024 ) {
+        NullStringToWebsockets( userState, ws, "We don't allow you to connect to ports under 1024. Sorry.", true );
         return true;
     }
     char * ssl = strtok_r( NULL, " ", &savePtr );
@@ -245,6 +247,11 @@ bool helpCommand( struct CS_WebSocket *ws, struct UserState *userState, const ch
     return false;
 }
 
+bool loremCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    NullStringToWebsockets( userState, ws, loremIpsum, true );
+    return false;
+}
+
 static struct commandToHandler commands[] = {
     { "/info", 5, infoCommand },
     { "/connect", 8, connectCommand },
@@ -257,7 +264,8 @@ static struct commandToHandler commands[] = {
     { "/disconnect", 11, disconnectCommand },
     { "/kill", 5, killCommand },
     { "/kick", 5, kickCommand },
-    { "/help", 5, helpCommand }
+    { "/help", 5, helpCommand },
+    { "/lorem", 6, loremCommand }
 };
 
 bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {

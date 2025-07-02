@@ -2,6 +2,9 @@
 <head>
     <title>webmud</title>
     <meta charset="utf-8"></meta>
+    <meta name="HandheldFriendly" content="true"></meta>
+    <meta name="MobileOptimized" content="320"></meta>
+    <meta name="viewport" content="initial-scale=1.0, width=device-width, user-scalable=no"></meta>
     <style>
 /* http://meyerweb.com/eric/tools/css/reset/ 
    v2.0 | 20110126
@@ -57,7 +60,7 @@ html {
     align-content: center;
     background-color: #606060;
 }
-body,code,textarea {
+body,body#wholeBody,code,textarea {
     margin: 0px auto;
     padding: 0px;
     display: flex;
@@ -75,22 +78,23 @@ body,code,textarea {
     scrollbar-width: thin;
 }
 body {
-    min-height: 100vh;
-    max-height: 100vh;
+    min-height: 100dvh;
+    max-height: 100dvh;
 }
 .scroll {
     overflow-y: scroll;
 }
 /*Where the scroll happens*/
 .top-screen-part {
-    min-height: 80vh;
-    max-height: 80vh;
+    min-height: 80dvh;
+    max-height: 80dvh;
 }
 /*Input area*/
 .bottom-screen-part {
-    content: center;
-    min-height: 20vh;
-    max-height: 20vh;
+    min-height: 20dvh;
+    max-height: 20dvh;
+    display: flex;
+    justify-content: center;
 }
 .output-area {
     width: 95%;
@@ -99,7 +103,9 @@ body {
 }
 .input-area, .input-area:focus {
     width: 95%;
-    outline:none;
+    min-width: 95%;
+    height: 95%;
+    outline: none; 
     white-space: pre-wrap;
     word-wrap: break-word;
 }
@@ -108,40 +114,30 @@ body {
 </head>
 <body id="wholeBody">
     <div id="outputScrollDiv" class="top-screen-part scroll">
-    <code class="output-area" id="outputDiv"></code>
+        <code class="output-area" id="outputDiv"></code>
     </div>
     <div class="bottom-screen-part scroll">
-    <div contenteditable="true" class="input-area" id="inputBox" type="text" autofocus></textarea><br></br>
+        <div contenteditable="true" class="input-area" id="inputBox" type="text" autofocus></div>
     </div>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;
 
-        //On any keypress...focus the input box.
-        wholeBody.addEventListener( "keydown", function (event) {
-            console.log("out: " +event);
-            inputBox.focus();
-        } );
-
-        inputBox.addEventListener( "keypress", function (event) {
-            console.log("in: " +event);
-            if( event.key == "Enter" ) {
-                event.preventDefault();
-                sendBox();
-            }
-        });
+	inputBox.innerText = "";
 
         let maxBackscroll = 800;
         let maxInputCache = 100;
         let backScroll = [];
         let inputCache = [];
         let currentInputCacheIndex = 0;
+        let currentLineCache = null;
 
-        function messageEvent( event ) {
-            console.log(event);
-            if( backScroll.length > maxBackscroll ) backScroll.shift();
-            backScroll.push( event.data );
+        //Fill the backscroll so the text in the output window starts at the bottom.
+        for( i = 0; i < maxBackscroll; ++i ) {
+            backScroll.push( "\r\n" );
+        }
 
+        function fillBackscroll() {
             let tempString = "";
 
             for( i = 0; i < backScroll.length; ++i ) {
@@ -149,6 +145,59 @@ body {
             }
             outputDiv.textContent = tempString;
             outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        fillBackscroll();
+
+        //On any keypress...focus the input box.
+        wholeBody.addEventListener( "keydown", function (event) {
+	    switch( event.key ) {
+		case "ArrowUp":
+                    //back one
+                    if( currentInputCacheIndex == 0 ) {
+                        currentInputCacheIndex = 1;
+                        currentLineCache = inputBox.innerText;
+                    } else {
+                        currentInputCacheIndex++;
+                    }
+                    if( currentInputCacheIndex > inputCache.length ) --currentInputCacheIndex;
+                    inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+                    break;
+                case "ArrowDown":
+                    if( currentInputCacheIndex > 1 ) {
+                        --currentInputCacheIndex;
+                    }
+                    if( currentInputCacheIndex == 0 && currentLineCache !== null ) {
+                        inputBox.innerText = currentLineCache;
+                        currentLineCache = 0;
+                    } else {
+                        inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+                    }
+                    //Last
+                    break;
+                default:
+                    currentLineCache = null;
+                    currentInputCacheIndex = 0;
+                    inputBox.focus();
+                    break;
+            }
+        } );
+
+	inputBox.addEventListener( "touchstart", function (event) {
+	    inputBox.focus();
+	} );
+
+        inputBox.addEventListener( "keypress", function (event) {
+            if( event.key == "Enter" ) {
+                event.preventDefault();
+                sendBox();
+            }
+        });
+
+        function messageEvent( event ) {
+            if( backScroll.length > maxBackscroll ) backScroll.shift();
+            backScroll.push( event.data );
+            fillBackscroll();
         }
 
         function openEvent( event ) {
@@ -184,6 +233,8 @@ body {
 
         function sendText( theText ) {
             if( globalWebsocket == null ) startWebsocket();
+            if( inputCache.length > maxBackscroll ) inputCache.shift();
+            inputCache.push( theText );
             globalWebsocket.send( theText + "\r\n" );
         }
 

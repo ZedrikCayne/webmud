@@ -73,8 +73,8 @@ CS_ARG_DEF(keyFile,CS_ARG_CMP("-k","--key"), "pemfile for ssl private key.");
 CS_ARG_DEF(certFile,CS_ARG_CMP("-c","--certificate"), "pemfile for certificate");
 CS_ARG_DEF(selfSignHostname,CS_ARG_CMP("--self-sign"), "create a self signed certificate for provided host");
 
-const struct CS_ArgElement myArgs[] = 
-    { CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
+const struct CS_ArgElement myArgs[] = {
+      CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
       CS_ARG_ELEMENT(autoLogin,CS_BOOL_ARG),
       CS_ARG_ELEMENT(onlyFails,CS_BOOL_ARG),
       CS_ARG_ELEMENT(noWarn,CS_BOOL_ARG),
@@ -93,7 +93,7 @@ const struct CS_ArgElement myArgs[] =
       CS_ARG_ELEMENT(keyFile,CS_STRING_ARG),
       CS_ARG_ELEMENT(certFile,CS_STRING_ARG),
       CS_ARG_ELEMENT(selfSignHostname,CS_STRING_ARG)
-    };
+};
 
 struct CS_ArgTable myCS_ArgTable = { sizeof(myArgs)/sizeof(CS_ArgElement), 0, NULL, myArgs };
 
@@ -103,6 +103,7 @@ void PrintHelp() {
 
 void PrintHeader() {
     //      12345678901234567890123456789012345678901234567890123456789012345678901234567890
+    printf("webmud, built around\n");
     printf("crankshaft, around which the world turns.        \\\n");
     printf("                              ==     ==    ==     \\\n");
     printf("                             /  \\   /  \\  /  \\     \\\n");
@@ -154,6 +155,7 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
 };
+
 
 
 int main(int argc, char *argv[] ) {
@@ -212,7 +214,10 @@ int main(int argc, char *argv[] ) {
     signal(SIGPIPE, pipeHandler);
 
     CS_LOG_INFO("Starting web server.");
-    const struct CS_Storage *keysCacheBackingStorage = CS_storageOpen( "KEY_WEB_CACHE", "file=/tmp/crankshaft_key.sqlite", CS_STORAGE_BACKEND_SQLITE );
+    const struct CS_Storage *keysCacheBackingStorage = CS_storageOpen( "KEY_WEB_CACHE", "file=secrets/webmud_public_key_cache.sqlite", CS_STORAGE_BACKEND_SQLITE );
+    if( keysCacheBackingStorage == NULL ) {
+        CS_LOG_ERROR("Failed to create the public key cache for web token verification.");
+    }
     CS_jwtkeychainInit( keysCacheBackingStorage );
 
     struct CS_WebServer *server = CS_serverStart( portNum, certFile, keyFile, selfSignHostname, fileServingDir, fileServingFile, cacheTimeInSeconds, serverRoutes, sizeof(serverRoutes)/sizeof(serverRoutes[0]) );
