@@ -70,44 +70,66 @@ body,code,textarea {
     width: 100%;
     background-color:#000000;
     color: #E0E0E0;
-    min-height: 100vh;
-    max-height: 100vh;
     overflow: hidden;
     scrollbar-color: #404040 #808080;
     scrollbar-width: thin;
 }
+body {
+    min-height: 100vh;
+    max-height: 100vh;
+}
 .scroll {
     overflow-y: scroll;
-    overflow-y: scroll;
 }
-.output-area {
-    width: 95%
+/*Where the scroll happens*/
+.top-screen-part {
     min-height: 80vh;
     max-height: 80vh;
+}
+/*Input area*/
+.bottom-screen-part {
+    content: center;
+    min-height: 20vh;
+    max-height: 20vh;
+}
+.output-area {
+    width: 95%;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
-.input-area {
-    width: 95%
-    max-height: 20vh;
-    min-height: 20vh;
+.input-area, .input-area:focus {
+    width: 95%;
+    outline:none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
+
 </style>
 </head>
-<body>
-    <code class="output-area scroll" id="outputDiv"></code>
-    <textarea class="input-area scroll" id="inputBox" type="text" autofocus></textarea><br></br>
+<body id="wholeBody">
+    <div id="outputScrollDiv" class="top-screen-part scroll">
+    <code class="output-area" id="outputDiv"></code>
+    </div>
+    <div class="bottom-screen-part scroll">
+    <div contenteditable="true" class="input-area" id="inputBox" type="text" autofocus></textarea><br></br>
+    </div>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;
 
+        //On any keypress...focus the input box.
+        wholeBody.addEventListener( "keydown", function (event) {
+            console.log("out: " +event);
+            inputBox.focus();
+        } );
+
         inputBox.addEventListener( "keypress", function (event) {
-            console.log( event.key );
+            console.log("in: " +event);
             if( event.key == "Enter" ) {
                 event.preventDefault();
                 sendBox();
             }
-        }) ;
+        });
 
         let maxBackscroll = 800;
         let maxInputCache = 100;
@@ -126,7 +148,7 @@ body,code,textarea {
                 tempString += backScroll[i];
             }
             outputDiv.textContent = tempString;
-            outputDiv.scrollTop = outputDiv.scrollHeight;
+            outputScrollDiv.scrollTop = outputDiv.scrollHeight;
         }
 
         function openEvent( event ) {
@@ -140,8 +162,15 @@ body,code,textarea {
         }
 
         function sendBox() {
-            sendText( inputBox.value );
-            inputBox.value = "";
+            let handled = false;
+            if( inputBox.innerText[0] == '/' ) {
+                if( inputBox.innerText.startsWith( "/help" ) ) {
+                    handled = true;
+                    window.open("/help.html", "_blank");
+                }
+            } 
+            if( !handled ) sendText( inputBox.innerText );
+            inputBox.innerText = "";
         }
 
         function startWebsocket() {

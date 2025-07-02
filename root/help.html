@@ -105,9 +105,11 @@ Returns the basic info. How many incoming connections are connected to your worl
 
 /connect &lt;name&gt; &lt;address&gt; &lt;port&gt; [ssl | sslv1]
 
-Connect to a remote socket. Will do SSL (and old, insecure ssl if the mud server you are talking to doesn't get modern ssl.)
+Connect to a remote socket. Will do SSL. Try using the ssl option first, and if it fails to connect, try sslv1 which forces webmud to try older and less secure methods.
 
 If you are on a disonnected connection, giving no parameters will cause it to reconnect.
+
+If you provide only a name, and you happen to have a connection that already exists with that name that connection will be swapped to front.
 
 /next
 
