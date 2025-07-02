@@ -30,6 +30,7 @@
 
 int acceptSocket = 0;
 
+static bool autoLogin = false;
 static bool onlyFails = false;
 static char defaultServerName[] = "webmud";
 static bool suppressErrors = false;
@@ -52,6 +53,7 @@ static char *keyFile = NULL;
 static char *selfSignHostname = NULL;
 static int cacheTimeInSeconds = 0;
 
+CS_ARG_DEF(autoLogin, CS_ARG_CMP("-a","--auto-login"),"Turns off google logins.");
 CS_ARG_DEF(wantHelp,CS_ARG_CMP("-?","-help","--help"),"Prints this help");
 CS_ARG_DEF(onlyFails,CS_ARG_CMP("--only-fails"), "Only print fails during unit testing.");
 CS_ARG_DEF(noWarn,CS_ARG_CMP("-w","--no-warn"),"No warning logs.");
@@ -73,6 +75,7 @@ CS_ARG_DEF(selfSignHostname,CS_ARG_CMP("--self-sign"), "create a self signed cer
 
 const struct CS_ArgElement myArgs[] = 
     { CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
+      CS_ARG_ELEMENT(autoLogin,CS_BOOL_ARG),
       CS_ARG_ELEMENT(onlyFails,CS_BOOL_ARG),
       CS_ARG_ELEMENT(noWarn,CS_BOOL_ARG),
       CS_ARG_ELEMENT(quiet,CS_BOOL_ARG),
@@ -197,7 +200,7 @@ int main(int argc, char *argv[] ) {
 
     //CS_mutexDebug(true);
 
-    startApplication();
+    startApplication(autoLogin);
     CS_LOG_INFO("Server Name: %s", serverName);
     CS_LOG_INFO("Port Number is %d", portNum);
 

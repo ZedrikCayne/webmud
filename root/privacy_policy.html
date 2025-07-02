@@ -1,0 +1,113 @@
+<html>
+<head>
+    <title>webmud</title>
+    <meta charset="utf-8"></meta>
+    <style>
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+/* Reset Ends */
+
+html {
+    align: center;
+    align-content: center;
+    background-color: #606060;
+}
+body,code,textarea {
+    margin: 0px auto;
+    padding: 0px;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Courier New', monospace;
+    max-width:1024px;
+    line-height:1.2;
+    font-size:18px;
+    color:#E0E0E0;
+    width: 100%;
+    background-color:#000000;
+    color: #E0E0E0;
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    scrollbar-color: #404040 #808080;
+    scrollbar-width: thin;
+}
+code {
+    width: 90%;
+    white-space: pre-wrap;
+}
+
+.scroll {
+    overflow-y: scroll;
+}
+.output-area {
+    min-height: 80vh;
+    max-height: 80vh;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.input-area {
+    max-height: 20vh;
+    min-height: 20vh;
+}
+</style>
+</head>
+<body>
+<div class="scroll">
+<code style="width: 80%,">
+Welcome to webmud
+
+The google login is more or less a speed bump for anyone trying to abuse the system. While they do provide us with your name and what not, we don't log it or store it on the server beyond the minimum amount of time it takes to process that you have a valid login.
+
+We don't log anything, all data is ephemeral to the server. There is one cookie that is required to keep your session together. Your session will remain valid until the server resets or 24 hours without logging in whatever comes first.
+
+That being said, all of your chat backscroll is saved on the server, max of 800 lines or 16k per mud connection.
+
+Go ahead and check out the source code on github <a href="https://github.com/ZedrikCayne/webmud">https://github.com/ZedrikCayne/webmud.git</a> and the webserver upon which it is based <a href="https://github.com/ZedrikCayne/crankshaft">https://github.com/ZedrikCayne/crankshaft</a>
+</code>
+<div>
+</body>

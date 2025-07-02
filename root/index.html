@@ -64,7 +64,7 @@ body,code,textarea {
     flex-direction: column;
     font-family: 'Courier New', monospace;
     max-width:1024px;
-    line-height:1.1;
+    line-height:1.3;
     font-size:18px;
     color:#E0E0E0;
     width: 100%;
@@ -81,12 +81,14 @@ body,code,textarea {
     overflow-y: scroll;
 }
 .output-area {
+    width: 95%
     min-height: 80vh;
     max-height: 80vh;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
 .input-area {
+    width: 95%
     max-height: 20vh;
     min-height: 20vh;
 }
@@ -107,8 +109,8 @@ body,code,textarea {
             }
         }) ;
 
-        let maxBackscroll = 300;
-        let maxInputCache = 300;
+        let maxBackscroll = 800;
+        let maxInputCache = 100;
         let backScroll = [];
         let inputCache = [];
         let currentInputCacheIndex = 0;

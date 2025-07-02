@@ -17,7 +17,10 @@
 static struct CS_HashTable *cheapSessions = NULL;
 static struct CS_HashTable *googleIdToSessionId = NULL;
 
-bool startApplication() {
+static bool appAutoLogin;
+
+bool startApplication(bool autoLogin) {
+    appAutoLogin = autoLogin;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     return !googleIdToSessionId||!cheapSessions;
@@ -37,6 +40,7 @@ bool cookieFilter( struct CS_ClientInfo *info ) {
             return false;
         }
     }
+    if( appAutoLogin ) autoLoginUtil(info);
     return loginPageReturn(info);
 }
 
@@ -179,7 +183,7 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
             return true;
         }
     }
-    struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 4096, 400 );
+    struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 32768, 800 );
     if( !mud ) {
         NullStringToWebsockets( userState, ws, "Failed to create a connection.", true );
         return true;
@@ -236,6 +240,11 @@ bool kickCommand( struct CS_WebSocket *ws, struct UserState *userState, const ch
     return false;
 }
 
+bool helpCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    NullStringToWebsockets( user, NULL, "Navigate to the /help.html page", true );
+    return false;
+}
+
 static struct commandToHandler commands[] = {
     { "/info", 5, infoCommand },
     { "/connect", 8, connectCommand },
@@ -247,7 +256,8 @@ static struct commandToHandler commands[] = {
     { "/dc", 3, disconnectCommand },
     { "/disconnect", 11, disconnectCommand },
     { "/kill", 5, killCommand },
-    { "/kick", 5, kickCommand }
+    { "/kick", 5, kickCommand },
+    { "/help", 5, helpCommand }
 };
 
 bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {
@@ -387,7 +397,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
-        sessionId = CS_uuid4String();
+        sessionId = CS_uuid4StringTemp();
         struct UserState *user = CreateUserState( sessionId  );
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
         CS_hashtablePut( cheapSessions, sessionId, user );
@@ -395,6 +405,14 @@ bool googleLogin( struct CS_ClientInfo *info ) {
 
     CS_jwtFree( jwt );
     
+    return loginRedirectToHead( info, (char*)sessionId );
+}
+
+bool autoLoginUtil( struct CS_ClientInfo *info ) {
+    const void * sessionId = CS_uuid4StringTemp();
+    struct UserState *user = CreateUserState( sessionId );
+    CS_hashtablePut( cheapSessions, sessionId, user );
+
     return loginRedirectToHead( info, (char*)sessionId );
 }
 

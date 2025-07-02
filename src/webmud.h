@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-bool startApplication();
+bool startApplication(bool autoLogin);
 void killApplication();
 
 //Filter for session cookie. Returns a login page if cookie does not exist.
@@ -23,7 +23,8 @@ bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie 
 bool googleLogin( struct CS_ClientInfo *info );
 //Main work once we have a session.
 bool websocket( struct CS_ClientInfo *info );
-
+//Auto login for debug
+bool autoLoginUtil( struct CS_ClientInfo *info );
 #ifdef __cplusplus
 }
 #endif
