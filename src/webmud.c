@@ -241,7 +241,7 @@ bool kickCommand( struct CS_WebSocket *ws, struct UserState *userState, const ch
 }
 
 bool helpCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
-    NullStringToWebsockets( user, NULL, "Navigate to the /help.html page", true );
+    NullStringToWebsockets( userState, NULL, "Navigate to the /help.html page", true );
     return false;
 }
 
