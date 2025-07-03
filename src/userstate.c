@@ -463,10 +463,12 @@ bool NextConnection( struct UserState *userState ) {
 
     const struct CS_ListItem *next = NULL;
 
-    if( userState->front->next ) {
-        next = userState->front->next;
-    } else {
-        next = CS_listGetHead( userState->muds );
+    if( userState->front ) {
+        if( userState->front->next ) {
+            next = userState->front->next;
+        } else {
+            next = CS_listGetHead( userState->muds );
+        }
     }
 
     setNewFront( userState, next );
@@ -479,10 +481,12 @@ bool LastConnection( struct UserState *userState ) {
 
     const struct CS_ListItem *next = NULL;
 
-    if( userState->front->last ) {
-        next = userState->front->last;
-    } else {
-        next = CS_listGetTail( userState->muds );
+    if( userState->front ) {
+        if( userState->front->last ) {
+            next = userState->front->last;
+        } else {
+            next = CS_listGetTail( userState->muds );
+        }
     }
 
     setNewFront( userState, next );
