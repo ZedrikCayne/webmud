@@ -94,7 +94,8 @@ body {
     min-height: 20dvh;
     max-height: 20dvh;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
+    flex-direction: column;
 }
 .output-area {
     width: 95%;
@@ -105,9 +106,25 @@ body {
     width: 95%;
     min-width: 95%;
     height: 95%;
+    min-height: 95%;
     outline: none; 
     white-space: pre-wrap;
     word-wrap: break-word;
+}
+.lowerpadded {
+    padding-left: 2.5%;
+    padding-right: 2.5%;
+}
+.input-area > div {
+    float: left;
+}
+.statusbar {
+    height: 1.5em;
+    width: 95%;
+    background-color: #707070;
+    color: #000000;
+    display: block;
+    font-weight: bold;
 }
 
 </style>
@@ -116,14 +133,19 @@ body {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <code class="output-area" id="outputDiv"></code>
     </div>
-    <div class="bottom-screen-part scroll">
-        <div contenteditable="true" class="input-area" id="inputBox" type="text" autofocus></div>
+    <div class="bottom-screen-part">
+        <div id="lebar" class="statusbar lowerpadded">
+            DISCONNECTED
+        </div>
+        <div class="scroll">
+            <div contenteditable="true" class="input-area lowerpadded" id="inputBox" type="text" autofocus></div>
+        </div>
     </div>
     <script>
         let globalWebsocket = null;
         let oldTextToSend = null;
 
-	inputBox.innerText = "";
+        inputBox.innerText = "";
 
         let maxBackscroll = 800;
         let maxInputCache = 100;
@@ -154,24 +176,29 @@ body {
 	    switch( event.key ) {
 		case "ArrowUp":
                     //back one
+		    if( inputCache.length < 1 ) break;
                     if( currentInputCacheIndex == 0 ) {
                         currentInputCacheIndex = 1;
                         currentLineCache = inputBox.innerText;
                     } else {
                         currentInputCacheIndex++;
                     }
-                    if( currentInputCacheIndex > inputCache.length ) --currentInputCacheIndex;
+		    if( currentInputCacheIndex > inputCache.length ) {
+                        --currentInputCacheIndex;
+		    }
                     inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
                     break;
                 case "ArrowDown":
                     if( currentInputCacheIndex > 1 ) {
                         --currentInputCacheIndex;
                     }
-                    if( currentInputCacheIndex == 0 && currentLineCache !== null ) {
+                    if( currentInputCacheIndex == 0 && currentLineCache !== null && currentLineCache !== undefined ) {
                         inputBox.innerText = currentLineCache;
-                        currentLineCache = 0;
+                        currentLineCache = null;
                     } else {
-                        inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+			if( inputCache.length > 0 ) {
+			    inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+			}
                     }
                     //Last
                     break;
@@ -183,9 +210,9 @@ body {
             }
         } );
 
-	inputBox.addEventListener( "touchstart", function (event) {
-	    inputBox.focus();
-	} );
+        inputBox.addEventListener( "touchstart", function (event) {
+            inputBox.focus();
+        } );
 
         inputBox.addEventListener( "keypress", function (event) {
             if( event.key == "Enter" ) {
@@ -195,9 +222,20 @@ body {
         });
 
         function messageEvent( event ) {
-            if( backScroll.length > maxBackscroll ) backScroll.shift();
-            backScroll.push( event.data );
-            fillBackscroll();
+            if( event.data instanceof Blob) {
+                //lebar.innerHTML = new String(event.data);
+                //lebar.innerText = new String(event.data);
+		console.log( event );
+		try {
+                    event.data.text().then( function(val) { lebar.innerText = val } );
+		} catch (error) {
+                    console.error("Error on blob.",error);
+		}
+            } else {
+                if( backScroll.length > maxBackscroll ) backScroll.shift();
+                backScroll.push( event.data );
+                fillBackscroll();
+            }
         }
 
         function openEvent( event ) {
@@ -249,4 +287,68 @@ body {
         window.onload = startWebsocket;
     </script>
 </body>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 </html>

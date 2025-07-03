@@ -1,6 +1,6 @@
-pushd crankshaft >/dev/null
-make library >/dev/null
-popd >/dev/null
-pushd build >/dev/null
-cmake --build . >/dev/null
-popd >/dev/null
+pushd crankshaft
+make library
+popd
+pushd build
+cmake --build .
+popd

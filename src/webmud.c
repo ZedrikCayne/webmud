@@ -96,7 +96,7 @@ static bool infoCommand( struct CS_WebSocket *ws, struct UserState *userState, c
 
     CS_SB_append( sb, "info:\r\n" );
 
-    CS_SB_printf( sb, "Num Connections: %d\r\n", CS_listCount( userState->websockets ) );
+    CS_SB_printf( sb, "Num Web Clients: %d\r\n", CS_listCount( userState->websockets ) );
 
     if( CS_listCount( userState->muds ) > 0 ) {
         int currentIndex = 1;
@@ -104,9 +104,9 @@ static bool infoCommand( struct CS_WebSocket *ws, struct UserState *userState, c
             struct MudState *mud = (struct MudState *)item->what;
             if( mud ) {
                 CS_SB_printf( sb, "Connection %d ", currentIndex );
-                if( item == userState->front ) CS_SB_append(sb, "current ");
                 CS_SB_append( sb, mud->name );
-                if( mud->linesWaiting ) CS_SB_printf( sb, "%d lines waiting", mud->linesWaiting );
+                if( item == userState->front ) CS_SB_append(sb, " current");
+                if( mud->linesWaiting ) CS_SB_printf( sb, " %d lines waiting", mud->linesWaiting );
                 CS_SB_append(sb, "\r\n");
             }
             ++currentIndex;
@@ -195,6 +195,7 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
         NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
         return true;
     }
+    PutMudFront( userState, mud );
     return false;
 }
 
@@ -252,6 +253,11 @@ bool loremCommand( struct CS_WebSocket *ws, struct UserState *userState, const c
     return false;
 }
 
+bool statusCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    if( lineLength > 7 ) BinToWebsockets( userState, NULL, line + 7, lineLength - 7, true );
+    return false;
+}
+
 static struct commandToHandler commands[] = {
     { "/info", 5, infoCommand },
     { "/connect", 8, connectCommand },
@@ -265,7 +271,8 @@ static struct commandToHandler commands[] = {
     { "/kill", 5, killCommand },
     { "/kick", 5, kickCommand },
     { "/help", 5, helpCommand },
-    { "/lorem", 6, loremCommand }
+    { "/lorem", 6, loremCommand },
+    { "/status", 7, statusCommand }
 };
 
 bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {

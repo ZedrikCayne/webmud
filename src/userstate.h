@@ -76,6 +76,7 @@ struct UserState {
 struct UserState *CreateUserState( const char *sessionId );
 void DestroyUserState( struct UserState *userState );
 void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser );
+void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser );
 void NullStringToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, bool lockUser );
 bool AddWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
 bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
@@ -90,6 +91,7 @@ bool DeleteFront( struct UserState *userService );
 struct MudState *MudStateByName( struct UserState *userState, const char *name );
 bool PutMudFront( struct UserState *userState, struct MudState *mudState );
 bool DisconnectOthers( struct UserState *userState, struct CS_WebSocket *ws );
+bool SendStatus( struct UserState *userState, bool lockUserState );
 
 
 #ifdef __cplusplus
