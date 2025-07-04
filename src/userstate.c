@@ -205,9 +205,11 @@ void *consumeThread(void *var) {
         //This socket has no mutexes on input or output.
         int numBytesRead = CS_socketFillIncomingBuffer( mud->mudSocket, false );
         if( numBytesRead < 0 ) {
+            CS_mutexLock( mud->user->mutex );
             if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
             mud->mudSocket = NULL;
             mud->disconnected = true;
+            CS_mutexLock( mud->user->mutex );
             break;
         }
         if( mud->mudSocket && numBytesRead > 0 ) {

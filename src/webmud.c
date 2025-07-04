@@ -11,9 +11,11 @@
 #include <crankshaft/logger.h>
 #include <crankshaft/list.h>
 #include <crankshaft/util.h>
+#include <crankshaft/storage.h>
 
 #include "webmud.h"
 
+static const struct CS_Storage *longTermStorage = NULL;
 static struct CS_HashTable *cheapSessions = NULL;
 static struct CS_HashTable *googleIdToSessionId = NULL;
 
@@ -23,6 +25,7 @@ static bool appAllowNonRoutable;
 static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
 bool startApplication(bool autoLogin, bool allowNonRoutable) {
+    longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
     appAutoLogin = autoLogin;
     appAllowNonRoutable = allowNonRoutable;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
@@ -38,7 +41,6 @@ void killApplication() {
 bool cookieFilter( struct CS_ClientInfo *info ) {
     const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
     if( cookieValue != NULL ) {
-        CS_LOG_TRACE("WEBMUD session cookie is %s", cookieValue );
         const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         if( currentSession != CS_HASHTABLE_ERROR && currentSession != NULL ) {
             return false;
@@ -224,7 +226,9 @@ static bool recallCommand( struct CS_WebSocket *ws, struct UserState *state, con
     int numLines = strtol( index, NULL, 10 );
     if( numLines == 0 ) return false;
     char *filter = strtok_r( NULL, " ", &savePtr );
+    NullStringToWebsockets( state, ws, "Recall Start", true );
     MudBackscrollToWebsockets( (struct MudState *)state->front->what, ws, numLines, filter, true, true );
+    NullStringToWebsockets( state, ws, "Recall End", true );
     return false;
 }
 
@@ -370,6 +374,12 @@ bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie 
     return true;
 }
 
+bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
+    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
+    CS_serverSetReplyCookie( reply, "session", sessionCookie, true );
+    return CS_serverPushFile( "root/index.html", info, 0, reply );
+}
+
 bool googleLogin( struct CS_ClientInfo *info ) {
     const char *g_csrf_header = CS_serverGetRequestCookie(info, "g_csrf_token");
     if( !g_csrf_header ) {
@@ -405,7 +415,6 @@ bool googleLogin( struct CS_ClientInfo *info ) {
 
     struct CS_JsonNode *subject = CS_jsonNodeByPath( jwt->jsonPayload, "sub" );
     if( !subject ) {
-        CS_LOG_ERROR( "WEBMUD Missing subject." );
         CS_jwtFree(jwt);
         return loginPageReturn(info);
     }
@@ -431,6 +440,14 @@ bool autoLoginUtil( struct CS_ClientInfo *info ) {
     CS_hashtablePut( cheapSessions, sessionId, user );
 
     return loginRedirectToHead( info, (char*)sessionId );
+}
+
+bool logout( struct CS_ClientInfo *info ) {
+    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
+    char *tempUuid4 = (char*)CS_uuid4StringTemp();
+    if( tempUuid4 ) *tempUuid4 = 'L';
+    CS_serverSetReplyCookie( reply, "session", tempUuid4, true );
+    return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
 }
 
 bool loginPageReturn( struct CS_ClientInfo *info ) {

@@ -256,6 +256,11 @@ body {
                     handled = true;
                     window.open("/help.html", "_blank");
                 }
+                if( inputBox.innerText.startsWith( "/logout" ) ||
+                    inputBox.innerText.startsWith( "/logoff" ) ) {
+                    handled = true;
+                    window.location.replace("/logout");
+                }
             } 
             if( !handled ) sendText( inputBox.innerText );
             inputBox.innerText = "";

@@ -25,6 +25,8 @@ bool googleLogin( struct CS_ClientInfo *info );
 bool websocket( struct CS_ClientInfo *info );
 //Auto login for debug
 bool autoLoginUtil( struct CS_ClientInfo *info );
+//Log off
+bool logout( struct CS_ClientInfo *info );
 #ifdef __cplusplus
 }
 #endif

@@ -156,13 +156,12 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/privacy_policy.html", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/googlelogin", googleLogin},
     { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_EXACT, 0, "/googlelogin", googleLogin},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/logout", logout},
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_FILTER, 0, "", cookieFilter},
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX, 0, "/ws", websocket},
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
 };
-
-
 
 int main(int argc, char *argv[] ) {
     const char * error = CS_argsParse(argc, argv, &myCS_ArgTable);
