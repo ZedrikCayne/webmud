@@ -52,8 +52,12 @@ static char *certFile = NULL;
 static char *keyFile = NULL;
 static char *selfSignHostname = NULL;
 static int cacheTimeInSeconds = 0;
+static bool logAccess = false;
+static bool allowNonRoutable = false;
 
+CS_ARG_DEF(allowNonRoutable, CS_ARG_CMP("--allow-non-routable"),"Allows non-routable addresses (Resolves to 10.x.x.x or 192.168.x.x for example)" );
 CS_ARG_DEF(autoLogin, CS_ARG_CMP("-a","--auto-login"),"Turns off google logins.");
+CS_ARG_DEF(logAccess, CS_ARG_CMP("--log-access"),"Turns on access logs.");
 CS_ARG_DEF(wantHelp,CS_ARG_CMP("-?","-help","--help"),"Prints this help");
 CS_ARG_DEF(onlyFails,CS_ARG_CMP("--only-fails"), "Only print fails during unit testing.");
 CS_ARG_DEF(noWarn,CS_ARG_CMP("-w","--no-warn"),"No warning logs.");
@@ -76,6 +80,7 @@ CS_ARG_DEF(selfSignHostname,CS_ARG_CMP("--self-sign"), "create a self signed cer
 const struct CS_ArgElement myArgs[] = {
       CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
       CS_ARG_ELEMENT(autoLogin,CS_BOOL_ARG),
+      CS_ARG_ELEMENT(logAccess,CS_BOOL_ARG),
       CS_ARG_ELEMENT(onlyFails,CS_BOOL_ARG),
       CS_ARG_ELEMENT(noWarn,CS_BOOL_ARG),
       CS_ARG_ELEMENT(quiet,CS_BOOL_ARG),
@@ -92,7 +97,8 @@ const struct CS_ArgElement myArgs[] = {
       CS_ARG_ELEMENT(cacheTimeInSeconds,CS_INT_ARG),
       CS_ARG_ELEMENT(keyFile,CS_STRING_ARG),
       CS_ARG_ELEMENT(certFile,CS_STRING_ARG),
-      CS_ARG_ELEMENT(selfSignHostname,CS_STRING_ARG)
+      CS_ARG_ELEMENT(selfSignHostname,CS_STRING_ARG),
+      CS_ARG_ELEMENT(allowNonRoutable,CS_BOOL_ARG)
 };
 
 struct CS_ArgTable myCS_ArgTable = { sizeof(myArgs)/sizeof(CS_ArgElement), 0, NULL, myArgs };
@@ -204,7 +210,7 @@ int main(int argc, char *argv[] ) {
 
     //CS_mutexDebug(true);
 
-    startApplication(autoLogin);
+    startApplication(autoLogin,allowNonRoutable);
     CS_LOG_INFO("Server Name: %s", serverName);
     CS_LOG_INFO("Port Number is %d", portNum);
 
@@ -222,6 +228,7 @@ int main(int argc, char *argv[] ) {
 
     struct CS_WebServer *server = CS_serverStart( portNum, certFile, keyFile, selfSignHostname, fileServingDir, fileServingFile, cacheTimeInSeconds, serverRoutes, sizeof(serverRoutes)/sizeof(serverRoutes[0]) );
     if( server != NULL ) {
+        server->logAccess = logAccess;
         CS_LOG_INFO("Server started at port %d", server->serverPort);
         while(!GotInterrupt) {
             if( GotHup ) hupOnMainThread();

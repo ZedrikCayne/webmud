@@ -18,11 +18,13 @@ static struct CS_HashTable *cheapSessions = NULL;
 static struct CS_HashTable *googleIdToSessionId = NULL;
 
 static bool appAutoLogin;
+static bool appAllowNonRoutable;
 
 static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
-bool startApplication(bool autoLogin) {
+bool startApplication(bool autoLogin, bool allowNonRoutable) {
     appAutoLogin = autoLogin;
+    appAllowNonRoutable = allowNonRoutable;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     return !googleIdToSessionId||!cheapSessions;
@@ -129,8 +131,8 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
     if( name == NULL ) {
         if( userState->front && userState->front->what ) {
             struct MudState *mud = (struct MudState*)userState->front->what;
-            if( mud->disconnected ) {
-                if( ConnectMud( mud ) ) {
+            if( mud->disconnected || !mud->running ) {
+                if( ConnectMud( mud, appAllowNonRoutable ) ) {
                     NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
                     return true;
                 }
@@ -147,8 +149,8 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
     if( address == NULL ) {
         if( currentNamed ) {
             PutMudFront( userState, currentNamed );
-            if( currentNamed->disconnected ) {
-                if( ConnectMud( currentNamed ) ) {
+            if( currentNamed->disconnected || !currentNamed->running ) {
+                if( ConnectMud( currentNamed, appAllowNonRoutable ) ) {
                     NullStringToWebsockets( userState, ws, "Could not connect to remote.", true );
                     return true;
                 }
@@ -191,7 +193,7 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
         return true;
     }
     AddMud( userState, mud );
-    if( ConnectMud( mud ) ) {
+    if( ConnectMud( mud, appAllowNonRoutable ) ) {
         NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
         return true;
     }
@@ -254,7 +256,7 @@ bool loremCommand( struct CS_WebSocket *ws, struct UserState *userState, const c
 }
 
 bool statusCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
-    if( lineLength > 7 ) BinToWebsockets( userState, NULL, line + 7, lineLength - 7, true );
+    SendStatus( userState, true );
     return false;
 }
 

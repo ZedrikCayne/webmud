@@ -1,5 +1,5 @@
 pushd crankshaft
-make library
+make lib
 popd
 pushd build
 cmake --build .

@@ -224,10 +224,10 @@ void *consumeThread(void *var) {
     return NULL;
 }
 
-bool ConnectMud( struct MudState *mud ) {
+bool ConnectMud( struct MudState *mud, bool allowNonRoutable ) {
     if( !mud ) return true;
     if( mud->mudSocket != NULL || mud->running ) return true;
-    mud->mudSocket = CS_socketConnect( mud->address, mud->port, mud->wantSSL, mud->tlsV1, 8192, 8192, false, false );
+    mud->mudSocket = CS_socketConnect( mud->address, !allowNonRoutable, mud->port, mud->wantSSL, mud->tlsV1, 8192, 8192, false, false );
     if( !mud->mudSocket ) return true;
     pthread_t newThread;
     int result = pthread_create(&newThread, NULL, consumeThread, mud);
