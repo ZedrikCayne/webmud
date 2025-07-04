@@ -330,6 +330,7 @@ void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, c
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
+    SendStatus( userState, false );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
 
@@ -580,25 +581,27 @@ bool DisconnectOthers( struct UserState *userState, struct CS_WebSocket *ws ) {
 
 bool SendStatus( struct UserState *userState, bool lockUserState ) {
     if( lockUserState ) CS_mutexLock( userState->mutex );
-    struct CS_StringBuilder *sb = CS_SB_create( 2048 );
-    const struct CS_ListItem *current = userState->front;
-    if( current == NULL ) {
-        CS_SB_append( sb, "NO MUDS" );
-    } else {
-        do {
-            const struct MudState *mudState = current->what;
-            CS_SB_append( sb, mudState->name );
-            if( !mudState->mudSocket ) CS_SB_append(sb, "!");
-            if( mudState->linesWaiting ) CS_SB_append(sb, "*");
-            CS_SB_append(sb, " ");
-            current = current->next;
-            if( current == NULL ) current = CS_listGetHead( userState->muds );
-        } while( current != userState->front );
+    time_t now = time(NULL);
+    if( now > userState->lastStatus + 5 ) {
+        struct CS_StringBuilder *sb = CS_SB_create( 2048 );
+        const struct CS_ListItem *current = userState->front;
+        if( current == NULL ) {
+            CS_SB_append( sb, "NO MUDS" );
+        } else {
+            do {
+                const struct MudState *mudState = current->what;
+                CS_SB_append( sb, mudState->name );
+                if( !mudState->mudSocket ) CS_SB_append(sb, "!");
+                if( mudState->linesWaiting ) CS_SB_append(sb, "*");
+                CS_SB_append(sb, " ");
+                current = current->next;
+                if( current == NULL ) current = CS_listGetHead( userState->muds );
+            } while( current != userState->front );
+        }
+
+        BinToWebsockets( userState, NULL, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
+        CS_SB_free( sb );
     }
-
-    BinToWebsockets( userState, NULL, CS_SB_buffer( sb ), CS_SB_size( sb ), lockUserState );
-
-    CS_SB_free( sb );
 
     if( lockUserState ) CS_mutexUnlock( userState->mutex );
 }

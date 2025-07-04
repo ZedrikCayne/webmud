@@ -69,6 +69,7 @@ struct UserState {
     time_t lastLogin;
     time_t thisLogin;
     time_t lastInput;
+    time_t lastStatus;
     bool loopback;
     struct CS_Mutex *mutex;
 };
