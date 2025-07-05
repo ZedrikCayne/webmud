@@ -181,7 +181,16 @@ struct MudState *CreateMud( struct UserState *user, char *name, char *address, i
         returnValue->wantSSL = ssl;
         returnValue->tlsV1 = tlsV1;
         returnValue->backscroll = CreateBackscroll( size, numlines );
+        if( returnValue->backscroll == NULL ) {
+            privateReturnMudState( returnValue );
+            return NULL;
+        }
         returnValue->user = user;
+        returnValue->socketMutex = CS_mutexTake();
+        if( returnValue->socketMutex == NULL ) {
+            privateReturnMudState( returnValue );
+            return NULL;
+        }
     }
 
     return returnValue;
@@ -189,11 +198,18 @@ struct MudState *CreateMud( struct UserState *user, char *name, char *address, i
 
 void DestroyMud( struct MudState *mud ) {
     if( mud ) {
-        if( mud->running ) DisconnectMud( mud );
-        //while( mud->running ) sleep( 20 );
-        if( mud->backscroll ) DestroyBackscroll( mud->backscroll );
-        memset( mud, 0, sizeof( struct MudState ) );
-        privateReturnMudState( mud );
+        CS_mutexLock( mud->socketMutex );
+        if( mud->running ) {
+            CS_mutexUnlock( mud->socketMutex );
+            mud->user = NULL;
+            DisconnectMud( mud, true );
+        } else {
+            CS_mutexUnlock( mud->socketMutex );
+            if( mud->backscroll ) DestroyBackscroll( mud->backscroll );
+            mud->backscroll = NULL;
+            if( mud->socketMutex ) CS_mutexReturn( mud->socketMutex );
+            mud->socketMutex = NULL;
+        }
     }
 }
 
@@ -203,48 +219,79 @@ void *consumeThread(void *var) {
     while( true ) {
         int lastLine = mud->backscroll->numLinesPushed;
         //This socket has no mutexes on input or output.
-        int numBytesRead = CS_socketFillIncomingBuffer( mud->mudSocket, false );
-        if( numBytesRead < 0 ) {
-            CS_mutexLock( mud->user->mutex );
-            if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
-            mud->mudSocket = NULL;
-            mud->disconnected = true;
-            CS_mutexLock( mud->user->mutex );
+        //We are the only ones who can delete the socket
+        if( mud->mudSocket ) {
+            struct CS_Socket *mudSocket = mud->mudSocket;
+            int numBytesRead = CS_socketFillIncomingBuffer( mudSocket, false );
+            
+            if( numBytesRead < 0 ) {
+                CS_mutexLock( mud->socketMutex );
+                if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
+                mud->mudSocket = NULL;
+                mud->disconnected = true;
+                CS_mutexUnlock( mud->socketMutex );
+                break;
+            }
+            if( mud->mudSocket && numBytesRead > 0 ) {
+                struct CS_PushPullBuffer *pp = CS_socketLockInputBuffer( mud->mudSocket );
+                FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
+                CS_PP_reset( pp );
+                CS_socketUnlockInputBuffer( mud->mudSocket );
+                mud->linesWaiting += mud->backscroll->numLinesPushed - lastLine;
+                if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
+            } else {
+                break;
+            }
+        } else {
             break;
         }
-        if( mud->mudSocket && numBytesRead > 0 ) {
-            struct CS_PushPullBuffer *pp = CS_socketLockInputBuffer( mud->mudSocket );
-            FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
-            CS_PP_reset( pp );
-            CS_socketUnlockInputBuffer( mud->mudSocket );
-            mud->linesWaiting += mud->backscroll->numLinesPushed - lastLine;
-            if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
-        }
     }
+    CS_mutexLock( mud->socketMutex );
+    if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
+    mud->mudSocket = NULL;
+    CS_mutexUnlock( mud->socketMutex );
     mud->running = false;
+    //If we've been disconnected from the user...kill ourselves.
+    if( mud->user == NULL ) {
+        DestroyMud( mud );
+    }
     pthread_exit(NULL);
     return NULL;
 }
 
 bool ConnectMud( struct MudState *mud, bool allowNonRoutable ) {
     if( !mud ) return true;
-    if( mud->mudSocket != NULL || mud->running ) return true;
+    CS_mutexLock( mud->socketMutex );
+    if( mud->mudSocket != NULL || mud->running ) {
+        CS_mutexUnlock( mud->socketMutex );
+        return true;
+    }
+    CS_mutexUnlock( mud->socketMutex );
     mud->mudSocket = CS_socketConnect( mud->address, !allowNonRoutable, mud->port, mud->wantSSL, mud->tlsV1, 8192, 8192, false, false );
-    if( !mud->mudSocket ) return true;
+    if( !mud->mudSocket ) {
+        return true;
+    }
     pthread_t newThread;
     int result = pthread_create(&newThread, NULL, consumeThread, mud);
     if( result < 0 ) {
         CS_socketDestroy( mud->mudSocket );
+        mud->mudSocket = NULL;
         return true;
     }
     pthread_detach( newThread );
     return false;
 }
 
-bool DisconnectMud( struct MudState *mud ) {
+bool DisconnectMud( struct MudState *mud, bool lock ) {
     if( !mud ) return true;
-    if( mud->mudSocket == NULL || !mud->running ) return false;
-    CS_socketClose( mud->mudSocket );
+    if( lock ) CS_mutexLock( mud->socketMutex );
+    if( mud->mudSocket == NULL || !mud->running ) {
+        if( lock ) CS_mutexUnlock( mud->socketMutex );
+        return true;
+    }
+    if( lock ) CS_socketClose( mud->mudSocket );
+    mud->mudSocket = NULL;
+    CS_mutexUnlock( mud->socketMutex );
     return false;
 }
 
@@ -279,8 +326,10 @@ void DestroyUserState( struct UserState *userState ) {
         if( userState->websockets ) {
             CS_LIST_ITER( userState->websockets, listItem ) {
                 struct CS_WebSocket *ws = (struct CS_WebSocket *)listItem->what;
+                CS_WS_close( ws, CS_WS_CLOSE_GOING_AWAY );
                 CS_WS_destroy( ws );
             }
+            CS_listDestroy( userState->websockets );
         }
         if( userState->muds ) CS_listDestroy( userState->muds );
         if( userState->mutex ) CS_mutexReturn( userState->mutex );
@@ -379,7 +428,9 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
     if( !userState || !userState->mutex || !userState->front ) return true;
     if( lock ) CS_mutexLock( userState->mutex );
     struct MudState *mud = (struct MudState *)userState->front->what;
+    CS_mutexLock( mud->socketMutex );
     if( !mud || !mud->mudSocket ) {
+        CS_mutexUnlock( mud->socketMutex );
         if( lock ) CS_mutexUnlock( userState->mutex );
         return true;
     }
@@ -405,6 +456,7 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
         bytesSent += bytesWrittenToSocket;
     }
     CS_socketUnlockOutputBuffer( mud->mudSocket );
+    CS_mutexUnlock( mud->socketMutex );
     if( lock ) CS_mutexUnlock( userState->mutex );
     if( bytesSent < length )
         return true;
@@ -545,7 +597,7 @@ bool DisconnectFront( struct UserState *userState ) {
         return true;
     }
 
-    DisconnectMud( (struct MudState *)userState->front->what );
+    DisconnectMud( (struct MudState *)userState->front->what, true );
 
     CS_mutexUnlock( userState->mutex );
     return false;
@@ -559,8 +611,10 @@ bool DeleteFront( struct UserState *userState ) {
         return true;
     }
     struct MudState *mud = (struct MudState *)userState->front->what;
-    DisconnectMud( mud );
-    DestroyMud( mud );
+    CS_mutexLock( mud->socketMutex );
+    DisconnectMud( mud, false );
+    mud->user = NULL;
+    CS_mutexUnlock( mud->socketMutex );
     const struct CS_ListItem *next = userState->front->next;
     if( !next ) next = userState->front->last;
     CS_listRemove( userState->muds, userState->front );

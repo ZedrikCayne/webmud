@@ -109,7 +109,7 @@ void PrintHelp() {
 
 void PrintHeader() {
     //      12345678901234567890123456789012345678901234567890123456789012345678901234567890
-    printf("webmud, built around\n");
+    printf("webmud, built around:\n");
     printf("crankshaft, around which the world turns.        \\\n");
     printf("                              ==     ==    ==     \\\n");
     printf("                             /  \\   /  \\  /  \\     \\\n");
@@ -207,7 +207,7 @@ int main(int argc, char *argv[] ) {
         return -1;
     }
 
-    //CS_mutexDebug(true);
+    CS_mutexDebug(false);
 
     startApplication(autoLogin,allowNonRoutable);
     CS_LOG_INFO("Server Name: %s", serverName);
