@@ -1,0 +1,135 @@
+<html>
+<head>
+    <title>webmud</title>
+    <meta charset="utf-8"></meta>
+    <style>
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+/* Reset Ends */
+
+html {
+    align: center;
+    align-content: center;
+    background-color: #606060;
+}
+body,code,textarea {
+    margin: 0px auto;
+    padding: 0px;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Courier New', monospace;
+    max-width:1024px;
+    line-height:1.2;
+    font-size:18px;
+    color:#E0E0E0;
+    width: 100%;
+    background-color:#000000;
+    color: #E0E0E0;
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    scrollbar-color: #404040 #808080;
+    scrollbar-width: thin;
+}
+code {
+    width: 90%;
+    white-space: pre-wrap;
+}
+
+.scroll {
+    overflow-y: scroll;
+}
+.output-area {
+    min-height: 80vh;
+    max-height: 80vh;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.input-area {
+    max-height: 20vh;
+    min-height: 20vh;
+}
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
+</style>
+<script src="https://accounts.google.com/gsi/client" async></script>
+</head>
+<body>
+<div id="g_id_onload" data-client_id="387570721811-r7q7dnef8r8tk14o9mb2f83ev5i4f54a.apps.googleusercontent.com" data-login-uri="/googlelogin" data-auto_prompt="true"></div>
+<div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left"></div>
+
+<div class="scroll">
+<code style="width: 80%,">
+<br/>
+
+Welcome to webmud. Google login button for instant access or send email to zedrikcayne at google mail to create one or to get your account password reset.
+
+<a href="/">Login Again?</a>
+
+Anonymous Login:
+(Username is a minimum of 3 characters, password at least 8, no restrictions on what you need to have in your password.)
+<form action="/anonymous" method="POST">
+<table><tr><td>Username:</td><td><input name="username" id="username" type="text"></input></td></tr>
+<tr><td>Password:</td><td><input name="password" id="password" type="password"></input></td></tr>
+<tr><td>Submit:</td><td><button id="submit">Login</button></td></tr>
+</table>
+</form>
+</code>
+
+<div>
+</body>

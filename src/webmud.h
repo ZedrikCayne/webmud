@@ -27,6 +27,11 @@ bool websocket( struct CS_ClientInfo *info );
 bool autoLoginUtil( struct CS_ClientInfo *info );
 //Log off
 bool logout( struct CS_ClientInfo *info );
+//Anonymous logins
+bool anonymousLogin( struct CS_ClientInfo *info );
+//Add or reset user
+bool AddOrResetUser( const char *name );
+
 #ifdef __cplusplus
 }
 #endif

@@ -12,6 +12,7 @@
 #include <crankshaft/list.h>
 #include <crankshaft/util.h>
 #include <crankshaft/storage.h>
+#include <crankshaft/base64.h>
 
 #include "webmud.h"
 
@@ -30,7 +31,7 @@ bool startApplication(bool autoLogin, bool allowNonRoutable) {
     appAllowNonRoutable = allowNonRoutable;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
-    return !googleIdToSessionId||!cheapSessions;
+    return !googleIdToSessionId||!cheapSessions||!longTermStorage;
 }
 
 void killApplication() {
@@ -48,6 +49,82 @@ bool cookieFilter( struct CS_ClientInfo *info ) {
     }
     if( appAutoLogin ) autoLoginUtil(info);
     return loginPageReturn(info);
+}
+
+const char *defaultSalt = "kaching";
+
+bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie );
+
+char *hashPassword( const char *inputPassword, const char *salt ) {
+    int inputPasswordLength = strlen( inputPassword ) + strlen( salt );
+    const char *saltedPassword = CS_tempBuffSnprintf( inputPasswordLength * 2, "%.4s%s%s", inputPassword, salt, inputPassword + 4 );
+    CS_LOG_LOUD( "%s", saltedPassword );
+    unsigned char *outputSha = CS_tempBuff( SHA_DIGEST_LENGTH );
+    SHA1( saltedPassword, inputPasswordLength, outputSha );
+    return CS_base64EncodeTemp( outputSha, SHA_DIGEST_LENGTH, NULL );
+} 
+
+bool AddOrResetUser( const char *name ) {
+    if( longTermStorage == NULL ) {
+        longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
+    }
+    CS_storageRemove( longTermStorage, name );
+    CS_storagePut( longTermStorage, name, "RESET", 5, 0, NULL );
+    return false;
+}
+
+bool anonymousLogin( struct CS_ClientInfo *info ) {
+    const void * username = CS_serverGetRequestFormParameter( info, "username" );
+    const void * password = CS_serverGetRequestFormParameter( info, "password" );
+    if( username == NULL || password == NULL ) {
+        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+    }
+    if( strlen(username) < 3 ) {
+        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+    }
+    if( strlen(password) < 8 ) {
+        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+    }
+
+    struct CS_StorageItem *item = CS_storageGet( longTermStorage, username );
+
+    if( item == NULL ) {
+        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+    }
+
+    char *hash = hashPassword( password, defaultSalt );
+
+    if( (item->size == 5) && (strncmp(item->value,"RESET",5) == 0) ) {
+RETRY_UPDATE:
+        if( CS_storageItemChangeData( item, strlen( hash ), 0, hash ) == NULL ) {
+            CS_storageReturnItem( item );
+            return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        }
+        struct CS_StorageItem *newItem = CS_storageUpdate( longTermStorage, item );
+        CS_storageReturnItem( item );
+        if( newItem != item ) {
+            item = newItem;
+            if( item == NULL ) {
+                item = CS_storagePut( longTermStorage, username, hash, strlen(hash), 0, &newItem );
+                if( !item ) {
+                    item = newItem;
+                    goto RETRY_UPDATE;
+                }
+                CS_storageReturnItem(item);
+            }
+        }
+    } else {
+        if( memcmp( item->value, hash, item->size ) != 0 ) {
+            CS_storageReturnItem( item );
+            return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        }
+    }
+    const char *sessionId = CS_uuid4StringTemp();
+    struct UserState *user = CreateUserState( username );
+    CS_hashtablePut( googleIdToSessionId, username, sessionId );
+    CS_hashtablePut( cheapSessions, sessionId, user );
+    
+    return loginAndReturnIndex( info, sessionId );
 }
 
 static struct CS_WebSocketFrame *backscrollToFrame( struct CS_WebSocket *ws,
@@ -431,7 +508,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
 
     CS_jwtFree( jwt );
     
-    return loginRedirectToHead( info, (char*)sessionId );
+    return loginAndReturnIndex( info, (char*)sessionId );
 }
 
 bool autoLoginUtil( struct CS_ClientInfo *info ) {
@@ -439,7 +516,7 @@ bool autoLoginUtil( struct CS_ClientInfo *info ) {
     struct UserState *user = CreateUserState( sessionId );
     CS_hashtablePut( cheapSessions, sessionId, user );
 
-    return loginRedirectToHead( info, (char*)sessionId );
+    return loginAndReturnIndex( info, (char*)sessionId );
 }
 
 bool logout( struct CS_ClientInfo *info ) {
@@ -451,41 +528,6 @@ bool logout( struct CS_ClientInfo *info ) {
 }
 
 bool loginPageReturn( struct CS_ClientInfo *info ) {
-    struct CS_HtmlNode *root = CS_htmlCreateRoot("html",2048);
-    struct CS_HtmlNode *head = CS_htmlAddContainerAfter( root, "head" );
-    struct CS_HtmlNode *meta = CS_htmlAddContainerAfter( head, "meta" );
-    CS_htmlAddAttribute( meta, "charset", "utf-8" );
-    struct CS_HtmlNode *title = CS_htmlAddContainerAfter( head, "title" );
-    CS_htmlSetContents( title, "webmud login page", false);
-    struct CS_HtmlNode *body = CS_htmlAddContainerAfter( root, "body" );
-    struct CS_HtmlNode *script = CS_htmlAddContainerAfter(body, "script");
-    CS_htmlAddAttribute( script, "async", NULL );
-    CS_htmlAddAttribute( script, "src", "https://accounts.google.com/gsi/client" );
-    struct CS_HtmlNode *div = CS_htmlAddContainerAfter( body, "div" );
-    CS_htmlAddAttribute( div, "id", "g_id_onload" );
-    CS_htmlAddAttribute( div, "data-client_id", CS_GS_getClientID() );
-
-    const char *host = CS_serverGetRequestHeader(info,"Host");
-    if( host == NULL ) host = "localhost";
-    CS_htmlAddAttribute( div, "data-login_uri",
-           CS_tempBuffSnprintf( 1024, "http%s://%s/googlelogin", 
-               info->ssl?"s":"", host ) );
-    CS_htmlAddAttribute( div, "data-auto_prompt", "false" );
-    div = CS_htmlAddContainerAfter( body, "div" );
-    CS_htmlAddAttribute( div, "class", "g_id_signin" );
-    CS_htmlAddAttribute( div, "data-type", "standard" );
-    CS_htmlAddAttribute( div, "data-size", "large" );
-    CS_htmlAddAttribute( div, "data-theme", "outline" );
-    CS_htmlAddAttribute( div, "data-text", "sign_in_with" );
-    CS_htmlAddAttribute( div, "data-shape", "rectangular" );
-    CS_htmlAddAttribute( div, "data-logo_alignment", "left" );
-    struct CS_StringBuilder *sb = CS_htmlToStringBuilder( root, 2048 );
-    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, CS_SB_buffer( sb ), CS_SB_size( sb ) );
-    CS_serverDoReply( info, reply );
-    CS_serverReturnReply( info, reply );
-    CS_SB_free( sb );
-    CS_htmlFree( root );
-    return true;
+    CS_serverPushFile("root/loginpage.html", info, 0, NULL );
 }
-
 
