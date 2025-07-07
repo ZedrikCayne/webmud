@@ -263,8 +263,19 @@ body {
             lebar.innerText = text;
         }
 
+        function addLine( text ) {
+            if( backScroll.length > maxBackscroll ) backScroll.shift();
+            backScroll.push( text );
+            fillBackscroll();
+        }
+
         function handleBinaryMessage( text ) {
-            setStatusMessage( text );
+            try {
+                var obj = JSON.parse( text );
+                if( obj.status ) setStatusMessage( obj.status );
+                if( obj.text ) addLine( obj.text );
+            } catch (ex) {
+            }
         }
 
         function messageEvent( event ) {
@@ -275,9 +286,7 @@ body {
                     console.error("Error on blob.",error);
                 }
             } else {
-                if( backScroll.length > maxBackscroll ) backScroll.shift();
-                backScroll.push( event.data );
-                fillBackscroll();
+                addLine( event.data );
             }
         }
 

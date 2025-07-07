@@ -7,6 +7,7 @@
 #include <crankshaft/logger.h>
 #include <crankshaft/mutex.h>
 #include <crankshaft/tempbuff.h>
+#include <crankshaft/json.h>
 #include "userstate.h"
 
 static struct CS_SlabAllocator *backscrolls = NULL;
@@ -361,6 +362,15 @@ void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only,
 void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
+    struct CS_JsonNode *overall = CS_jsonNodeNew( 1024 );
+    if( !overall ) return;
+    struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
+    if( !container ) return;
+    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "status", what, length );
+    if( !text ) return;
+    struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
+    if( !sb ) return;
+
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws && (!only || ws == only) ) {
@@ -374,13 +384,24 @@ void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, co
 void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
+    struct CS_JsonNode *overall = CS_jsonNodeNew( 1024 );
+    if( !overall ) return;
+    struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
+    if( !container ) return;
+    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "text", what, length );
+    if( !text ) return;
+    struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
+    if( !sb ) return;
+
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws && (!only || ws == only) ) {
-            struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_TEXT, false, what, length);
+            struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, CS_SB_buffer(sb), CS_SB_size(sb) );
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
+    CS_SB_free( sb );
+    CS_jsonFree( overall );
     SendStatus( userState, false );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
