@@ -26,7 +26,7 @@
 #include <crankshaft/socket.h>
 #include <crankshaft/mutex.h>
 
-#include "userstate.h"
+#include "webmud.h"
 
 int acceptSocket = 0;
 
@@ -54,7 +54,8 @@ static char *selfSignHostname = NULL;
 static int cacheTimeInSeconds = 0;
 static bool logAccess = false;
 static bool allowNonRoutable = false;
-static char *addUser = NULL;
+static char defaultEmailForAdmin[] = "zedrikcayne@gmail.com";
+static char *adminEmail = defaultEmailForAdmin;
 
 CS_ARG_DEF(allowNonRoutable, CS_ARG_CMP("--allow-non-routable"),"Allows non-routable addresses (Resolves to 10.x.x.x or 192.168.x.x for example)" );
 CS_ARG_DEF(autoLogin, CS_ARG_CMP("-a","--auto-login"),"Turns off google logins.");
@@ -77,7 +78,6 @@ CS_ARG_DEF(fileServingDir,CS_ARG_CMP("--dir","--default-directory"), "Default di
 CS_ARG_DEF(keyFile,CS_ARG_CMP("-k","--key"), "pemfile for ssl private key.");
 CS_ARG_DEF(certFile,CS_ARG_CMP("-c","--certificate"), "pemfile for certificate");
 CS_ARG_DEF(selfSignHostname,CS_ARG_CMP("--self-sign"), "create a self signed certificate for provided host");
-CS_ARG_DEF(addUser,CS_ARG_CMP("--adduser","--reset-password"), "Add or reset a user's password");
 
 const struct CS_ArgElement myArgs[] = {
       CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
@@ -101,7 +101,6 @@ const struct CS_ArgElement myArgs[] = {
       CS_ARG_ELEMENT(certFile,CS_STRING_ARG),
       CS_ARG_ELEMENT(selfSignHostname,CS_STRING_ARG),
       CS_ARG_ELEMENT(allowNonRoutable,CS_BOOL_ARG),
-      CS_ARG_ELEMENT(addUser,CS_STRING_ARG)
 };
 
 struct CS_ArgTable myCS_ArgTable = { sizeof(myArgs)/sizeof(CS_ArgElement), 0, NULL, myArgs };
@@ -213,13 +212,7 @@ int main(int argc, char *argv[] ) {
 
     CS_mutexDebug(false);
 
-    if( addUser != NULL &&
-        strlen( addUser ) > 3 ) {
-        AddOrResetUser( addUser );
-        return 0;
-    }
-
-    startApplication(autoLogin,allowNonRoutable);
+    startApplication(autoLogin,allowNonRoutable, adminEmail);
     CS_LOG_INFO("Server Name: %s", serverName);
     CS_LOG_INFO("Port Number is %d", portNum);
 

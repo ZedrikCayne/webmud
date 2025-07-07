@@ -1,4 +1,5 @@
 #include <string.h>
+#include <ctype.h>
 
 #include <crankshaft/hashtable.h>
 #include <crankshaft/server.h>
@@ -20,6 +21,9 @@ static const struct CS_Storage *longTermStorage = NULL;
 static struct CS_HashTable *cheapSessions = NULL;
 static struct CS_HashTable *googleIdToSessionId = NULL;
 
+static const char *sessionThatIsAdmin = NULL;
+static const char *adminEmail = NULL;
+
 static bool appAutoLogin;
 static bool appAllowNonRoutable;
 
@@ -27,10 +31,11 @@ static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing e
 
 bool redirectTo( struct CS_ClientInfo *info, const char *location );
 
-bool startApplication(bool autoLogin, bool allowNonRoutable) {
+bool startApplication(bool autoLogin, bool allowNonRoutable, const char *theAdminEmail ) {
     longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
     appAutoLogin = autoLogin;
     appAllowNonRoutable = allowNonRoutable;
+    adminEmail = theAdminEmail;
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     return !googleIdToSessionId||!cheapSessions||!longTermStorage;
@@ -67,9 +72,6 @@ char *hashPassword( const char *inputPassword, const char *salt ) {
 } 
 
 bool AddOrResetUser( const char *name ) {
-    if( longTermStorage == NULL ) {
-        longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
-    }
     CS_storageRemove( longTermStorage, name );
     CS_storagePut( longTermStorage, name, "RESET", 5, 0, NULL );
     return false;
@@ -144,6 +146,7 @@ static struct CS_WebSocketFrame *backscrollToFrame( struct CS_WebSocket *ws,
 struct commandToHandler {
     char *command;
     int  commandLength;
+    bool admin;
     bool (*executeMe)(struct CS_WebSocket *ws, struct UserState *user,const char *line, int length);
 };
 
@@ -160,14 +163,16 @@ static bool prevCommand( struct CS_WebSocket *ws, struct UserState *userState, c
     LastConnection( userState );
     return false;
 }
+
 static bool nextCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     NextConnection( userState );
     return false;
 }
+
 static bool pickCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
     char *savePtr;
-    char *command = strtok_r( temp, " ", &savePtr );
+    strtok_r( temp, " ", &savePtr );
     char *index = strtok_r( NULL, " ", &savePtr );
     int which = 0;
     if( index == NULL ) {
@@ -212,7 +217,7 @@ static bool infoCommand( struct CS_WebSocket *ws, struct UserState *userState, c
 static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
     char *copy = tempCopyWithNulls( line, length );
     char *savePtr;
-    char * command = strtok_r(copy, " ", &savePtr);
+    strtok_r(copy, " ", &savePtr);
     char * name = strtok_r(NULL, " ", &savePtr);
     if( name == NULL ) {
         if( userState->front && userState->front->what ) {
@@ -300,7 +305,7 @@ static bool loopbackCommand( struct CS_WebSocket *ws, struct UserState *state, c
 static bool recallCommand( struct CS_WebSocket *ws, struct UserState *state, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
     char *savePtr;
-    char *command = strtok_r( temp, " ", &savePtr );
+    strtok_r( temp, " ", &savePtr );
     char *index = strtok_r( NULL, " ", &savePtr );
     if( !state || !state->front || !state->front->what ) return true;
     if( index == NULL ) {
@@ -348,27 +353,104 @@ bool statusCommand( struct CS_WebSocket *ws, struct UserState *userState, const 
     return false;
 }
 
+bool addUserCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    char *savePtr;
+    char *copy = tempCopyWithNulls( line, lineLength );
+    strtok_r( copy, " ", &savePtr );
+    char *name = strtok_r(NULL, " ", &savePtr );
+
+    //Hack off the space on the end.
+    if( name ) {
+        char *nameIter = name;
+        while( *nameIter && !isspace( *nameIter ) ) ++nameIter;
+        *nameIter = 0;
+    }
+    
+    if( !name || strlen( name ) < 3 ) {
+        NullStringToWebsockets( userState, ws, "User name must be longer than 3 characters.", true );
+        return false;
+    }
+
+    struct CS_StorageItem *item = CS_storageGet( longTermStorage, name );
+    if( item != NULL ) {
+        CS_storageReturnItem( item );
+        NullStringToWebsockets( userState, ws, "User name already exists.", true );
+        return false;
+    }
+
+    item = CS_storagePut( longTermStorage, name, "RESET", 5, 0, NULL );
+    if( item != NULL ) {
+        CS_storageReturnItem(item);
+        NullStringToWebsockets( userState, ws, "User Added.", true );
+    } else {
+        NullStringToWebsockets( userState, ws, "User failed to add...", true );
+    }
+    return false;
+}
+
+bool resetUserCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int lineLength ) {
+    char *savePtr;
+    char *copy = tempCopyWithNulls( line, lineLength );
+    strtok_r( copy, " ", &savePtr );
+    char *name = strtok_r(NULL, " ", &savePtr );
+    
+    //Hack off the space on the end.
+    if( name ) {
+        char *nameIter = name;
+        while( *nameIter && !isspace( *nameIter ) ) ++nameIter;
+        *nameIter = 0;
+    }
+
+    if( !name || strlen( name ) < 3 ) {
+        NullStringToWebsockets( userState, ws, "User name must be longer than 3 characters.", true );
+        return false;
+    }
+
+    struct CS_StorageItem *item = CS_storageGet( longTermStorage, name );
+
+    if( !item ) {
+        NullStringToWebsockets( userState, ws, "User did not exist.", true );
+        return false;
+    }
+
+    CS_storageItemChangeData( item, 5, 0, "RESET" );
+
+    struct CS_StorageItem * newItem = CS_storageUpdate( longTermStorage, item );
+
+    if( newItem != item ) {
+        NullStringToWebsockets( userState, ws, "Failed to reset password.", true );
+        CS_storageReturnItem( newItem );
+    }
+
+    CS_storageReturnItem( item );
+
+    return false;
+}
+ 
 static struct commandToHandler commands[] = {
-    { "/info", 5, infoCommand },
-    { "/connect", 8, connectCommand },
-    { "/next", 5, nextCommand },
-    { "/prev", 5, prevCommand },
-    { "/pick", 5, pickCommand },
-    { "/loopback", 9, loopbackCommand },
-    { "/recall", 7, recallCommand },
-    { "/dc", 3, disconnectCommand },
-    { "/disconnect", 11, disconnectCommand },
-    { "/kill", 5, killCommand },
-    { "/kick", 5, kickCommand },
-    { "/help", 5, helpCommand },
-    { "/lorem", 6, loremCommand },
-    { "/status", 7, statusCommand }
+    { "/info", 5, false, infoCommand },
+    { "/connect", 8, false, connectCommand },
+    { "/next", 5, false, nextCommand },
+    { "/prev", 5, false, prevCommand },
+    { "/pick", 5, false, pickCommand },
+    { "/loopback", 9, false, loopbackCommand },
+    { "/recall", 7, false, recallCommand },
+    { "/dc", 3, false, disconnectCommand },
+    { "/disconnect", 11, false, disconnectCommand },
+    { "/kill", 5, false, killCommand },
+    { "/kick", 5, false, kickCommand },
+    { "/help", 5, false, helpCommand },
+    { "/lorem", 6, false, loremCommand },
+    { "/status", 7, false, statusCommand },
+    { "/adduser", 8, true, addUserCommand },
+    { "/resetuser", 10, true, resetUserCommand }
 };
 
 bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {
     int numCommands = CS_ARRAY_SIZE( commands );
     for( int i = 0; i < numCommands; ++i ) {
         if( memcmp( line, commands[i].command, commands[i].commandLength ) == 0 ) {
+            if( commands[i].admin && !user->admin ) continue;
             return commands[i].executeMe( ws, user, line, lineLength );
         }
     }
@@ -487,11 +569,18 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     }
     char *googleId = strndup( (char*)CS_jsonNodeValueAsTempString( subject ), 64 );
 
+    bool isAdmin = false;
+    struct CS_JsonNode *email = CS_jsonNodeByPath( jwt->jsonPayload, "email" );
+    if( email && strcmp( email->stringValue, adminEmail ) == 0 ) {
+        isAdmin = true;
+    }
+
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
         sessionId = CS_uuid4StringTemp();
         struct UserState *user = CreateUserState( sessionId  );
+        user->admin = isAdmin;
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
         CS_hashtablePut( cheapSessions, sessionId, user );
     }

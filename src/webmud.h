@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-bool startApplication(bool autoLogin, bool allowNonRoutable);
+bool startApplication(bool autoLogin, bool allowNonRoutable, const char *theAdminEmail);
 void killApplication();
 
 //Filter for session cookie. Returns a login page if cookie does not exist.

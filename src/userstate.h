@@ -10,7 +10,7 @@
 #include <crankshaft/uuid.h>
 #include <crankshaft/websocket.h>
 
-#include "webmud.h"
+//#include "webmud.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,6 +71,7 @@ struct UserState {
     time_t thisLogin;
     time_t lastInput;
     time_t lastStatus;
+    bool admin;
     bool loopback;
     struct CS_Mutex *mutex;
 };
