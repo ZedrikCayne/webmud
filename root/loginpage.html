@@ -110,7 +110,25 @@ a:active {
 <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
-<div id="g_id_onload" data-client_id="387570721811-r7q7dnef8r8tk14o9mb2f83ev5i4f54a.apps.googleusercontent.com" data-login-uri="/googlelogin" data-auto_prompt="true"></div>
+<noscript>You're going to need javascript for any of this to work.</noscript>
+<script>
+let pageArguments = {};
+window.onload = function () {
+        let argPairs = window.location.search;
+        if( argPairs !== undefined && argPairs !== null ) {
+            argPairs = argPairs.substring(1);
+            let splits = argPairs.split("&");
+            splits.forEach( function(argPair) {
+                let pairSplit = argPair.split("=");
+                pageArguments[pairSplit[0]]=pairSplit[1];
+            } );
+        }
+        if( pageArguments.reason ) {
+            reasonDiv.innerText = decodeURI( pageArguments.reason );
+        }
+    };
+</script>
+<div id="g_id_onload" data-client_id="387570721811-r7q7dnef8r8tk14o9mb2f83ev5i4f54a.apps.googleusercontent.com" data-login_uri="https://webmud.publicvm.com/googlelogin" data-auto_prompt="true"></div>
 <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left"></div>
 
 <div class="scroll">
@@ -129,6 +147,7 @@ Anonymous Login:
 <tr><td>Submit:</td><td><button id="submit">Login</button></td></tr>
 </table>
 </form>
+<div id="reasonDiv" style="color: #FF0000"></div>
 </code>
 
 <div>

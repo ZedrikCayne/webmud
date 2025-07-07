@@ -25,6 +25,8 @@ static bool appAllowNonRoutable;
 
 static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
+bool redirectTo( struct CS_ClientInfo *info, const char *location );
+
 bool startApplication(bool autoLogin, bool allowNonRoutable) {
     longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
     appAutoLogin = autoLogin;
@@ -77,19 +79,22 @@ bool anonymousLogin( struct CS_ClientInfo *info ) {
     const void * username = CS_serverGetRequestFormParameter( info, "username" );
     const void * password = CS_serverGetRequestFormParameter( info, "password" );
     if( username == NULL || password == NULL ) {
-        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        return redirectTo(info,"/?reason=No%20username%20or%20password%20provided.");
     }
     if( strlen(username) < 3 ) {
-        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        return redirectTo(info,"/?reason=Username%20less%20than%203%20characters."); 
     }
     if( strlen(password) < 8 ) {
-        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        return redirectTo(info,"/?reason=Password%20shorter%20than%208%20characters%20");
     }
 
     struct CS_StorageItem *item = CS_storageGet( longTermStorage, username );
 
     if( item == NULL ) {
-        return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+        return redirectTo(info,"/?reason=User%20does%20not%20exist%20or%20wrong%20password");
+        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
     }
 
     char *hash = hashPassword( password, defaultSalt );
@@ -98,7 +103,8 @@ bool anonymousLogin( struct CS_ClientInfo *info ) {
 RETRY_UPDATE:
         if( CS_storageItemChangeData( item, strlen( hash ), 0, hash ) == NULL ) {
             CS_storageReturnItem( item );
-            return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+            //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+            return redirectTo(info,"/?reason=Password%20failed%20to%20updated%20password.%20Try%20again.");
         }
         struct CS_StorageItem *newItem = CS_storageUpdate( longTermStorage, item );
         CS_storageReturnItem( item );
@@ -116,7 +122,8 @@ RETRY_UPDATE:
     } else {
         if( memcmp( item->value, hash, item->size ) != 0 ) {
             CS_storageReturnItem( item );
-            return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
+            return redirectTo(info,"/?reason=User%20does%20not%20exist%20or%20wrong%20password");
+            //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
         }
     }
     const char *sessionId = CS_uuid4StringTemp();
@@ -395,11 +402,7 @@ bool websocket( struct CS_ClientInfo *info ) {
         const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
-        char *copyBuff = NULL;
         struct UserState *user = (struct UserState *)currentSession;
-        int printLength = 0;
-        char *tempbuff;
-        const struct CS_ListItem *theItem;
         if( gws ) {
             AddWebsocket( user, gws );
             struct CS_WebSocketFrame * nextFrame = NULL;
@@ -431,23 +434,10 @@ ERROR_CLOSE:
     return true;
 }
 
-bool loginRedirectToHead( struct CS_ClientInfo *info, const char *sessionCookie ) {
-    struct CS_HtmlNode *root = CS_htmlCreateRoot("html",2048);
-    struct CS_HtmlNode *head = CS_htmlAddContainerAfter( root, "head" );
-    struct CS_HtmlNode *meta = CS_htmlAddContainerAfter( head, "meta" );
-    CS_htmlAddAttribute( meta, "charset", "utf-8" );
-    struct CS_HtmlNode *title = CS_htmlAddContainerAfter( head, "title" );
-    CS_htmlSetContents( title, CS_tempBuffSnprintf(1024, "webmud redirecting" ), false );
-    struct CS_HtmlNode *body = CS_htmlAddContainerAfter( root, "body" );
-    CS_htmlSetContents(body, "Redirecting.", false);
-    struct CS_HtmlNode *script = CS_htmlAddContainerAfter( body, "script" );
-    CS_htmlSetContents(script,"window.location = \"/\";",true);
-    struct CS_StringBuilder *sb = CS_htmlToStringBuilder( root, 2048 );
-    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, CS_SB_buffer( sb ), CS_SB_size( sb ) );
-    CS_serverSetReplyCookie( reply, "session", sessionCookie, true );
+bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
+    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
+    CS_serverSetReplyHeader( reply, "Location", location );
     CS_serverDoReply( info, reply );
-    CS_SB_free( sb );
-    CS_htmlFree( root );
     return true;
 }
 

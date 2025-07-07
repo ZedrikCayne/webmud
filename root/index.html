@@ -130,6 +130,7 @@ body {
 </style>
 </head>
 <body id="wholeBody">
+    <noscript>You're going to need javascript for any of this to work.</noscript>
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <code class="output-area" id="outputDiv"></code>
     </div>
@@ -224,14 +225,12 @@ body {
 
         function messageEvent( event ) {
             if( event.data instanceof Blob) {
-                //lebar.innerHTML = new String(event.data);
-                //lebar.innerText = new String(event.data);
-		console.log( event );
-		try {
+                console.log( event );
+                try {
                     event.data.text().then( function(val) { lebar.innerText = val } );
-		} catch (error) {
+                } catch (error) {
                     console.error("Error on blob.",error);
-		}
+                }
             } else {
                 if( backScroll.length > maxBackscroll ) backScroll.shift();
                 backScroll.push( event.data );
@@ -289,7 +288,6 @@ body {
             }
         }
 
-        document.onload = startWebsocket;
         window.onload = startWebsocket;
     </script>
 </body>
