@@ -65,7 +65,6 @@ bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie 
 char *hashPassword( const char *inputPassword, const char *salt ) {
     int inputPasswordLength = strlen( inputPassword ) + strlen( salt );
     const char *saltedPassword = CS_tempBuffSnprintf( inputPasswordLength * 2, "%.4s%s%s", inputPassword, salt, inputPassword + 4 );
-    CS_LOG_LOUD( "%s", saltedPassword );
     unsigned char *outputSha = CS_tempBuff( SHA_DIGEST_LENGTH );
     SHA1( saltedPassword, inputPasswordLength, outputSha );
     return CS_base64EncodeTemp( outputSha, SHA_DIGEST_LENGTH, NULL );
@@ -81,11 +80,9 @@ bool anonymousLogin( struct CS_ClientInfo *info ) {
     const void * username = CS_serverGetRequestFormParameter( info, "username" );
     const void * password = CS_serverGetRequestFormParameter( info, "password" );
     if( username == NULL || password == NULL ) {
-        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
         return redirectTo(info,"/?reason=No%20username%20or%20password%20provided.");
     }
     if( strlen(username) < 3 ) {
-        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
         return redirectTo(info,"/?reason=Username%20less%20than%203%20characters."); 
     }
     if( strlen(password) < 8 ) {
@@ -96,7 +93,6 @@ bool anonymousLogin( struct CS_ClientInfo *info ) {
 
     if( item == NULL ) {
         return redirectTo(info,"/?reason=User%20does%20not%20exist%20or%20wrong%20password");
-        //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
     }
 
     char *hash = hashPassword( password, defaultSalt );
