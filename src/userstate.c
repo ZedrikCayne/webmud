@@ -374,10 +374,12 @@ void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, co
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws && (!only || ws == only) ) {
-            struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, what, length);
+            struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, CS_SB_buffer(sb), CS_SB_size(sb) );
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
+    CS_SB_free( sb );
+    CS_jsonFree( overall );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
 
