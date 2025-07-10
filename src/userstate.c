@@ -407,7 +407,9 @@ void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, c
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws && (!only || ws == only) ) {
             struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, CS_SB_buffer(sb), CS_SB_size(sb) );
-            CS_WS_pushFrame( ws, returnFrame );
+            if ( CS_WS_pushFrame( ws, returnFrame ) ) {
+                
+            }
         }
     }
     SendStatus( userState, false );

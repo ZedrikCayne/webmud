@@ -319,10 +319,14 @@ body {
 
         function startWebsocket() {
             if( globalWebsocket === null ) {
-                globalWebsocket = new WebSocket("/ws");
-                globalWebsocket.addEventListener( "message", messageEvent );
-                globalWebsocket.addEventListener( "open", openEvent );
-                globalWebsocket.addEventListener( "close", closeEvent );
+                try {
+                    globalWebsocket = new WebSocket("/ws");
+                    globalWebsocket.addEventListener( "message", messageEvent );
+                    globalWebsocket.addEventListener( "open", openEvent );
+                    globalWebsocket.addEventListener( "close", closeEvent );
+                } catch (ex) {
+                    closeWebsocket();
+                }
             } 
         }
 
@@ -330,7 +334,11 @@ body {
             if( globalWebsocket == null ) startWebsocket();
             if( inputCache.length > maxBackscroll ) inputCache.shift();
             inputCache.push( theText );
-            globalWebsocket.send( theText + "\r\n" );
+            try {
+                globalWebsocket.send( theText + "\r\n" );
+            } catch ( ex ) {
+                setStatusMessage("Websocket failed to send.");
+            }
         }
 
         function closeWebsocket() {
