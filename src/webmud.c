@@ -505,7 +505,9 @@ bool websocket( struct CS_ClientInfo *info ) {
             }
 ERROR_CLOSE:
             RemoveWebsocket( user, gws );
+            SendStatus( user, true );
             if( nextFrame ) CS_WS_returnFrame( gws, nextFrame );
+            nextFrame = NULL;
             CS_WS_destroy( gws );
         }
     }

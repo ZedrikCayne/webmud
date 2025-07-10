@@ -155,7 +155,10 @@ void FeedBackscroll( struct Backscroll *backscroll, const char *input, int input
     int currentStartIndex = 0;
     CS_mutexLock( backscroll->backscrollMutex );
     for( int i = 0; i < inputLength; ++i ) {
-        if( !startOfInput ) startOfInput = current;
+        if( !startOfInput ) {
+            startOfInput = current;
+            currentStartIndex = i;
+        }
         if( *current == LF ) {
             AddLine( backscroll, startOfInput, i - currentStartIndex + 1 );
             startOfInput = NULL;
@@ -218,19 +221,17 @@ void *consumeThread(void *var) {
     struct MudState *mud = (struct MudState *)var;
     mud->running = true;
     while( true ) {
-        int lastLine = mud->backscroll->numLinesPushed;
         //This socket has no mutexes on input or output.
         //We are the only ones who can delete the socket
         if( mud->mudSocket ) {
+            CS_mutexLock( mud->socketMutex );
             struct CS_Socket *mudSocket = mud->mudSocket;
             int numBytesRead = CS_socketFillIncomingBuffer( mudSocket, false );
             
             if( numBytesRead < 0 ) {
-                CS_mutexLock( mud->socketMutex );
                 if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
                 mud->mudSocket = NULL;
                 mud->disconnected = true;
-                CS_mutexUnlock( mud->socketMutex );
                 break;
             }
             if( mud->mudSocket && numBytesRead > 0 ) {
@@ -238,9 +239,12 @@ void *consumeThread(void *var) {
                 FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
                 CS_PP_reset( pp );
                 CS_socketUnlockInputBuffer( mud->mudSocket );
-                mud->linesWaiting += mud->backscroll->numLinesPushed - lastLine;
-                if( mud->user->front && mud->user->front->what == mud ) MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
+                CS_mutexUnlock( mud->socketMutex );
+                if( mud->user->front && mud->user->front->what == mud ) {
+                    MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
+                }
             } else {
+                CS_mutexUnlock( mud->socketMutex );
                 break;
             }
         } else {
@@ -308,6 +312,9 @@ struct UserState *CreateUserState( const char *sessionId ) {
         returnValue->thisLogin = returnValue->lastLogin = time(NULL);
         returnValue->mutex = CS_mutexTakeNamed("USER STATE");
         if( returnValue->mutex == NULL ) goto USER_STATE_ERROR;
+        returnValue->jsonForOutput = CS_jsonNodeNew( 8192 );
+        returnValue->sbForOutput = CS_SB_create( 8192 );
+        if( returnValue->jsonForOutput == NULL ) goto USER_STATE_ERROR;
     }
     
     return returnValue;
@@ -335,6 +342,8 @@ void DestroyUserState( struct UserState *userState ) {
         if( userState->muds ) CS_listDestroy( userState->muds );
         if( userState->mutex ) CS_mutexReturn( userState->mutex );
         privateReturnUserState( userState );
+        if( userState->jsonForOutput ) CS_jsonFree( userState->jsonForOutput );
+        if( userState->sbForOutput ) CS_SB_free( userState->sbForOutput );
     }
 }
 
@@ -342,8 +351,9 @@ void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only,
     struct CS_Mutex *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
     if( mutex ) {
         if( lock ) CS_mutexLock(mutex);
-        if( mud->linesWaiting > 0 || number != 0) {
-            int currentWaiting = number!=0?-number:-mud->linesWaiting;
+        if( mud->backscroll->numLinesPushed > 0 || number != 0) {
+            int currentWaiting = number!=0?-number:-mud->backscroll->numLinesPushed;
+            if( number == 0 ) mud->backscroll->numLinesPushed = 0;
             const struct CS_ListItem *backscrollItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
             if( backscrollItem == NULL ) backscrollItem = CS_listGetHead( mud->backscroll->backscrollLines );
             if( backscrollItem ) {
@@ -362,13 +372,14 @@ void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only,
 void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
-    struct CS_JsonNode *overall = CS_jsonNodeNew( 1024 );
-    if( !overall ) return;
+    struct CS_JsonNode *overall = CS_jsonNodeReset( userState->jsonForOutput );
     struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
-    if( !container ) return;
     struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "status", what, length );
     if( !text ) return;
-    struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
+    struct CS_StringBuilder *sb = userState->sbForOutput;
+    CS_SB_reset( sb );
+    CS_jsonNodePrintableToStringBuilder( overall, sb );
+    //struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
     if( !sb ) return;
 
     CS_LIST_ITER( userState->websockets, item ) {
@@ -378,22 +389,19 @@ void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, co
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
-    CS_SB_free( sb );
-    CS_jsonFree( overall );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
 
 void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
-    struct CS_JsonNode *overall = CS_jsonNodeNew( 1024 );
-    if( !overall ) return;
+    struct CS_JsonNode *overall = CS_jsonNodeReset( userState->jsonForOutput );
     struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
-    if( !container ) return;
     struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "text", what, length );
     if( !text ) return;
-    struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
-    if( !sb ) return;
+    struct CS_StringBuilder *sb = userState->sbForOutput;
+    CS_SB_reset( sb );
+    CS_jsonNodePrintableToStringBuilder( overall, sb );
 
     CS_LIST_ITER( userState->websockets, item ) {
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
@@ -402,8 +410,6 @@ void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, c
             CS_WS_pushFrame( ws, returnFrame );
         }
     }
-    CS_SB_free( sb );
-    CS_jsonFree( overall );
     SendStatus( userState, false );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
 }
@@ -529,7 +535,7 @@ static void setNewFront( struct UserState *userState, const struct CS_ListItem *
         if( next ) {
             struct MudState *state = (struct MudState *)userState->front->what;
             NullStringToWebsockets( userState, NULL, CS_tempBuffSnprintf( 128, "Switched to %s.", state->name ), false );
-            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, NULL, 0, NULL, false, false );
+            MudBackscrollToWebsockets( (struct MudState *) userState->front->what, NULL, 0, NULL, true, false );
             SendStatus( userState, false );
         } else {
             NullStringToWebsockets( userState, NULL, "Switched to NO WORLD.", false );
@@ -662,7 +668,8 @@ bool SendStatus( struct UserState *userState, bool lockUserState ) {
     if( lockUserState ) CS_mutexLock( userState->mutex );
     time_t now = time(NULL);
     if( now > userState->lastStatus + 5 ) {
-        struct CS_StringBuilder *sb = CS_SB_create( 2048 );
+        struct CS_StringBuilder *sb = userState->sbForOutput;
+        CS_SB_reset(sb);
         const struct CS_ListItem *current = userState->front;
         if( current == NULL ) {
             CS_SB_append( sb, "NO MUDS" );
@@ -677,9 +684,7 @@ bool SendStatus( struct UserState *userState, bool lockUserState ) {
                 if( current == NULL ) current = CS_listGetHead( userState->muds );
             } while( current != userState->front );
         }
-
         BinToWebsockets( userState, NULL, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
-        CS_SB_free( sb );
     }
 
     if( lockUserState ) CS_mutexUnlock( userState->mutex );

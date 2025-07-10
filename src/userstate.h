@@ -9,6 +9,7 @@
 #include <crankshaft/socket.h>
 #include <crankshaft/uuid.h>
 #include <crankshaft/websocket.h>
+#include <crankshaft/stringbuilder.h>
 
 //#include "webmud.h"
 
@@ -67,6 +68,8 @@ struct UserState {
     struct CS_List *muds;
     struct CS_List *websockets;
     char session[SESSION_NAME_SIZE];
+    struct CS_JsonNode *jsonForOutput;
+    struct CS_StringBuilder *sbForOutput;
     time_t lastLogin;
     time_t thisLogin;
     time_t lastInput;

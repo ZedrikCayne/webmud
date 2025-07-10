@@ -200,7 +200,7 @@ int main(int argc, char *argv[] ) {
         CS_LOG_ERROR("Cannot init global temp space.");
         return -1;
     }
-    if( CS_sslInit() ) {
+    if( CS_sslInit(NULL,NULL,NULL) ) {
         CS_LOG_ERROR("Error initializing ssl.");
         return -1;
     }
