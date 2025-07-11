@@ -52,7 +52,7 @@ static char *certFile = NULL;
 static char *keyFile = NULL;
 static char *selfSignHostname = NULL;
 static int cacheTimeInSeconds = 0;
-static bool logAccess = false;
+static char *logAccess = NULL;
 static bool allowNonRoutable = false;
 static char defaultEmailForAdmin[] = "zedrikcayne@gmail.com";
 static char *adminEmail = defaultEmailForAdmin;
@@ -82,7 +82,7 @@ CS_ARG_DEF(selfSignHostname,CS_ARG_CMP("--self-sign"), "create a self signed cer
 const struct CS_ArgElement myArgs[] = {
       CS_ARG_ELEMENT(wantHelp,CS_BOOL_ARG),
       CS_ARG_ELEMENT(autoLogin,CS_BOOL_ARG),
-      CS_ARG_ELEMENT(logAccess,CS_BOOL_ARG),
+      CS_ARG_ELEMENT(logAccess,CS_STRING_ARG),
       CS_ARG_ELEMENT(onlyFails,CS_BOOL_ARG),
       CS_ARG_ELEMENT(noWarn,CS_BOOL_ARG),
       CS_ARG_ELEMENT(quiet,CS_BOOL_ARG),
@@ -230,12 +230,14 @@ int main(int argc, char *argv[] ) {
 
     struct CS_WebServer *server = CS_serverStart( portNum, certFile, keyFile, selfSignHostname, fileServingDir, fileServingFile, cacheTimeInSeconds, serverRoutes, sizeof(serverRoutes)/sizeof(serverRoutes[0]) );
     if( server != NULL ) {
-        server->logAccess = logAccess;
+        if( logAccess != NULL ) server->logAccess = CS_logfileCreate( logAccess, 5, 10000000, 24*3600 );
         CS_LOG_INFO("Server started at port %d", server->serverPort);
         while(!GotInterrupt) {
             if( GotHup ) hupOnMainThread();
+            if( logAccess ) CS_logfileFlush( server->logAccess );
             sleep(1);
         }
+        CS_logfileClose( server->logAccess );
         CS_serverKill(server);
     } else {
         CS_LOG_ERROR("Server failed to start...");

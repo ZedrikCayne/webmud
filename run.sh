@@ -1,3 +1,3 @@
 #gdb --args build/webmud --trace
-build/webmud --auto-login --allow-non-routable
+build/webmud --auto-login --allow-non-routable --log-access logs/access-insecure
 
