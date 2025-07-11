@@ -249,6 +249,7 @@ void *consumeThread(void *var) {
             break;
         }
     }
+    if( mud->user ) SendStatus(mud->user, true);
     if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
     mud->mudSocket = NULL;
     mud->running = false;
@@ -420,6 +421,17 @@ void NullStringToWebsockets( struct UserState *userState, struct CS_WebSocket *o
         copyTo[nLen] = '\r';
         copyTo[nLen+1] = '\n';
         TextToWebsockets( userState, only, copyTo, nLen+2, lockUser );
+    }
+}
+void NullStringToStatus( struct UserState *userState, struct CS_WebSocket *only, const char *what, bool lockUser ) {
+    int nLen = strnlen( what, MAX_ACCEPTABLE_STRING );
+    if( nLen <= MAX_ACCEPTABLE_STRING ) {
+        char * copyTo = CS_tempBuffZero( nLen + 4 );
+        memcpy( copyTo, what, nLen );
+        copyTo[nLen] = '\r';
+        copyTo[nLen+1] = '\n';
+        userState->lastStatus = time(NULL);
+        BinToWebsockets( userState, only, copyTo, nLen+2, lockUser );
     }
 }
 
@@ -660,6 +672,8 @@ bool SendStatus( struct UserState *userState, bool lockUserState ) {
     if( lockUserState ) CS_mutexLock( userState->mutex );
     time_t now = time(NULL);
     if( now > userState->lastStatus + 5 ) {
+        userState->lastStatus = time(NULL);
+
         struct CS_StringBuilder *sb = userState->sbForOutput;
         CS_SB_reset(sb);
         const struct CS_ListItem *current = userState->front;

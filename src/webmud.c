@@ -220,15 +220,16 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
             struct MudState *mud = (struct MudState*)userState->front->what;
             if( mud->disconnected || !mud->running ) {
                 if( ConnectMud( mud, appAllowNonRoutable ) ) {
-                    NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
+                    NullStringToStatus( userState, ws, "Failed to connect to remote.", true );
                     return true;
                 }
             } else {
-                NullStringToWebsockets( userState, ws, CS_tempBuffSnprintf( 128, "Still connected to %s.", mud->name), true );
+                NullStringToStatus( userState, ws, CS_tempBuffSnprintf( 128, "Still connected to %s.", mud->name), true );
                 return true;
             }
+        } else {
+            NullStringToStatus( userState, ws, "Connection needs a name.", true );
         }
-        NullStringToWebsockets( userState, ws, "Connection needs a name.", true );
         return true;
     }
     struct MudState *currentNamed = MudStateByName( userState, name );
@@ -238,29 +239,30 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
             PutMudFront( userState, currentNamed );
             if( currentNamed->disconnected || !currentNamed->running ) {
                 if( ConnectMud( currentNamed, appAllowNonRoutable ) ) {
-                    NullStringToWebsockets( userState, ws, "Could not connect to remote.", true );
+                    NullStringToStatus( userState, ws, "Could not connect to remote.", true );
                     return true;
                 }
             }
             return false;
+        } else {
+            NullStringToStatus( userState, ws, "Need an address.", true );
+            return true;
         }
-        NullStringToWebsockets( userState, ws, "Need an address.", true );
-        return true;
     } else {
         if( currentNamed ) {
-            NullStringToWebsockets( userState, ws,
+            NullStringToStatus( userState, ws,
                    CS_tempBuffSnprintf( 128, "Already have a connection named %s", name ), true );
             return true;
         }
     }
     char * port_str = strtok_r(NULL, " ", &savePtr);
     if( port_str == NULL ) {
-        NullStringToWebsockets( userState, ws, "Need a port number.", true );
+        NullStringToStatus( userState, ws, "Need a port number.", true );
         return true;
     }
     long portNum = strtol( port_str, NULL, 10 );
     if( portNum < 1024 ) {
-        NullStringToWebsockets( userState, ws, "We don't allow you to connect to ports under 1024. Sorry.", true );
+        NullStringToStatus( userState, ws, "We don't allow you to connect to ports under 1024. Sorry.", true );
         return true;
     }
     char * ssl = strtok_r( NULL, " ", &savePtr );
@@ -270,21 +272,23 @@ static bool connectCommand( struct CS_WebSocket *ws, struct UserState *userState
         wantSSL = strncmp(ssl,"ssl",3) == 0;
         if( strncmp(ssl,"sslv1",5) == 0 ) {wantSSL=tlsV1=true;}
         if( !wantSSL ) {
-            NullStringToWebsockets( userState, ws, "Optional ssl argument bad, needs to be ssl or sslv1", true );
+            NullStringToStatus( userState, ws, "Optional ssl argument bad, needs to be ssl or sslv1", true );
             return true;
         }
     }
     struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 32768, 800 );
     if( !mud ) {
-        NullStringToWebsockets( userState, ws, "Failed to create a connection.", true );
+        NullStringToStatus( userState, ws, "Failed to create a connection.", true );
         return true;
     }
-    AddMud( userState, mud );
     if( ConnectMud( mud, appAllowNonRoutable ) ) {
-        NullStringToWebsockets( userState, ws, "Failed to connect to remote.", true );
+        NullStringToStatus( userState, ws, "Failed to connect to remote.", true );
+        DestroyMud( mud );
         return true;
+    } else {
+        AddMud( userState, mud );
+        PutMudFront( userState, mud );
     }
-    PutMudFront( userState, mud );
     return false;
 }
 

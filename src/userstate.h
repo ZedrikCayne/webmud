@@ -83,6 +83,7 @@ struct UserState *CreateUserState( const char *sessionId );
 void DestroyUserState( struct UserState *userState );
 void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser );
 void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser );
+void NullStringToStatus( struct UserState *userState, struct CS_WebSocket *only, const char *what, bool lockUser );
 void NullStringToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, bool lockUser );
 bool AddWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
 bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws );
