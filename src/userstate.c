@@ -225,7 +225,6 @@ void *consumeThread(void *var) {
         //This socket has no mutexes on input or output.
         //We are the only ones who can delete the socket
         if( mud->mudSocket ) {
-            CS_mutexLock( mud->socketMutex );
             struct CS_Socket *mudSocket = mud->mudSocket;
             int numBytesRead = CS_socketFillIncomingBuffer( mudSocket, false );
             
@@ -240,22 +239,18 @@ void *consumeThread(void *var) {
                 FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
                 CS_PP_reset( pp );
                 CS_socketUnlockInputBuffer( mud->mudSocket );
-                CS_mutexUnlock( mud->socketMutex );
                 if( mud->user->front && mud->user->front->what == mud ) {
                     MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
                 }
             } else {
-                CS_mutexUnlock( mud->socketMutex );
                 break;
             }
         } else {
             break;
         }
     }
-    CS_mutexLock( mud->socketMutex );
     if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
     mud->mudSocket = NULL;
-    CS_mutexUnlock( mud->socketMutex );
     mud->running = false;
     //If we've been disconnected from the user...kill ourselves.
     if( mud->user == NULL ) {
@@ -459,9 +454,7 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
     if( !userState || !userState->mutex || !userState->front ) return true;
     if( lock ) CS_mutexLock( userState->mutex );
     struct MudState *mud = (struct MudState *)userState->front->what;
-    CS_mutexLock( mud->socketMutex );
     if( !mud || !mud->mudSocket ) {
-        CS_mutexUnlock( mud->socketMutex );
         if( lock ) CS_mutexUnlock( userState->mutex );
         return true;
     }
@@ -487,7 +480,6 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
         bytesSent += bytesWrittenToSocket;
     }
     CS_socketUnlockOutputBuffer( mud->mudSocket );
-    CS_mutexUnlock( mud->socketMutex );
     if( lock ) CS_mutexUnlock( userState->mutex );
     if( bytesSent < length )
         return true;
@@ -642,10 +634,8 @@ bool DeleteFront( struct UserState *userState ) {
         return true;
     }
     struct MudState *mud = (struct MudState *)userState->front->what;
-    CS_mutexLock( mud->socketMutex );
     DisconnectMud( mud, false );
     mud->user = NULL;
-    CS_mutexUnlock( mud->socketMutex );
     const struct CS_ListItem *next = userState->front->next;
     if( !next ) next = userState->front->last;
     CS_listRemove( userState->muds, userState->front );

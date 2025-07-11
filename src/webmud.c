@@ -486,9 +486,7 @@ bool websocket( struct CS_ClientInfo *info ) {
             struct CS_WebSocketFrame * nextFrame = NULL;
             while( true ) {
                 nextFrame = CS_WS_nextIncomingFrame( gws );
-                if( nextFrame == NULL ) CS_LOG_LOUD("NO frame.");
                 if( nextFrame == NULL ) break;
-                CS_LOG_LOUD("FrameIn: %.*s", nextFrame->payloadLength, nextFrame->payload );
                 switch( nextFrame->opcode ) {
                     //We must return a pong for any ping we get.
                     case CS_WS_OPCODE_PING:
