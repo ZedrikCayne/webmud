@@ -98,7 +98,9 @@ body {
     flex-direction: column;
 }
 .output-area {
+    margin: auto;
     width: 95%;
+    max-width: 95%;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
@@ -142,12 +144,25 @@ body {
     width: 50px;
     height: 50px;
 }
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
+
 </style>
 </head>
 <body id="wholeBody">
     <noscript>You're going to need javascript for any of this to work.</noscript>
     <div id="outputScrollDiv" class="top-screen-part scroll">
-        <code class="output-area" id="outputDiv"></code>
+        <div class="output-area" id="outputDiv"></div>
     </div>
     <div style="position: relative" class="bottom-screen-part">
         <div id="lebar" class="statusbar lowerpadded">
@@ -173,28 +188,15 @@ body {
 
         let maxBackscroll = 800;
         let maxInputCache = 100;
-        let backScroll = [];
         let inputCache = [];
         let currentInputCacheIndex = 0;
         let currentLineCache = null;
 
         //Fill the backscroll so the text in the output window starts at the bottom.
         for( i = 0; i < maxBackscroll; ++i ) {
-            backScroll.push( "\r\n" );
+            addLine("\r\n");
         }
-        backScroll.push("Enter /help below for help.");
-
-        function fillBackscroll() {
-            let tempString = "";
-
-            for( i = 0; i < backScroll.length; ++i ) {
-                tempString += backScroll[i];
-            }
-            outputDiv.textContent = tempString;
-            outputScrollDiv.scrollTop = outputDiv.scrollHeight;
-        }
-
-        fillBackscroll();
+        addLine("Enter /help below for help.\r\n");
 
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
@@ -264,9 +266,17 @@ body {
         }
 
         function addLine( text ) {
-            if( backScroll.length > maxBackscroll ) backScroll.shift();
-            backScroll.push( text );
-            fillBackscroll();
+            let wantBottom = outputScrollDiv.scrollTop > (outputDiv.scrollHeight - (outputDiv.scrollHeight * (10.0 / 100.0)));
+            let newElement = document.createElement("div");
+            newElement.textContent = text;
+            let convertedHTML = newElement.innerHTML;
+            newElement.innerHTML = convertedHTML.replace(/(https?:\/\/[^\s"'`]+)/g, (url) => { return `<a href="${url}" target="_blank">${url}</a>`; });
+            
+            outputDiv.appendChild( newElement );
+            if( outputDiv.childElementCount > maxBackscroll )
+                outputDiv.removeChild( outputDiv.firstChild );
+                
+            if( wantBottom ) outputScrollDiv.scrollTop = outputDiv.scrollHeight;
         }
 
         function handleBinaryMessage( text ) {
@@ -345,7 +355,6 @@ body {
                 return;
             }
             try {
-                console.log("Sending OK back " + why);
                 globalWebsocket.send(AB);
             } catch (ex) {
                 console.log("FAIL " + ex);
@@ -357,7 +366,6 @@ body {
             if( inputCache.length > maxBackscroll ) inputCache.shift();
             inputCache.push( theText );
             try {
-                console.log("Sending " + theText );
                 globalWebsocket.send( theText + "\r\n" );
             } catch ( ex ) {
                 setStatusMessage("Websocket failed to send.");
@@ -372,7 +380,11 @@ body {
             }
         }
 
-        window.onload = startWebsocket;
+        window.onload = function () {
+            startWebsocket();
+            outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+
+        }
     </script>
 </body>
 </html>
