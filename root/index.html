@@ -270,7 +270,7 @@ a:active {
             let newElement = document.createElement("div");
             newElement.textContent = text;
             let convertedHTML = newElement.innerHTML;
-            newElement.innerHTML = convertedHTML.replace(/(https?:\/\/[^\s"'`]+)/g, (url) => { return `<a href="${url}" target="_blank">${url}</a>`; });
+            newElement.innerHTML = convertedHTML.replace(/(https?:\/\/[^\s"'`<>]+)/g, (url) => { return `<a href="${url}" target="_blank">${url}</a>`; });
             
             outputDiv.appendChild( newElement );
             if( outputDiv.childElementCount > maxBackscroll )
