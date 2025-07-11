@@ -88,6 +88,18 @@ body,code,textarea {
     max-height: 20vh;
     min-height: 20vh;
 }
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
 </style>
 </head>
 <body>
@@ -95,28 +107,21 @@ body,code,textarea {
 <code style="width: 90%;white-space: pre-wrap;">
 Welcome to webmud
 
-This is running on an absurdly small machine as a practical test for this teeny tiny webserver.
-
 It is a reasonably servicable mud client. And while we do hold a reasonably large backscroll, do not depend on it being here as it is completely ephemeral. One good power glitch and it's gone.
+
+We do log where you are coming from and what pages you access. Sorry, it's the only way to shut down folks who knock on the front door of the web server with ill intent.
 
 Expect down time as I'm messing with it when I have a spare minute or three.
 
-Right, software license:
+We restrict the output ports you can try to connect to as well as any addresses on a local network. (A local network address will connect from the server's point of view to *itself* if you ask for localhost for example...sorry, not going to allow that.)
 
-webmud based on the MIT License
+Output connections are only ready for ipv4, not ipv6. Might do that in the future if things get hosted on a 'real' network.
 
-Copyright (c) 2025-present Zedrik Cayne 
+We reserve the right to block anyone who tries to use the server for evil. No plans for world domination, pushing old ladies down the stairs etc.
 
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or
-sell copies of the Software, and to permit persons to whom
-the Software is furnished to do so, subject to the following conditions:
+And please, do not use this for emergency contact, 911 services, etc. Use your head.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Oh, and of course the warranty disclaimer also known as the 'Please do not sue me' bit.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -125,25 +130,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Any use of this project to do evil is prohibited. Definitions of evil
-include stuff like missile guidance systems, world dominance, coup efforts,
-pushing old folks down stairs, that kind of jazz.
-
-Seriously, don't.
-
-Any use of this project in the medical field or financial field is
-prohibited. The authors don't want to have that on their conscience
-when it inevitably fails and causes a pacemaker to freak out or through
-some odd freak of nature turns your portfolio into penny stocks.
-
-Seriously, don't.
-
-If you're making money using this software, good! Throw some the
-authors way.
-
-That's it. Now go make something. (Or don't...I'm not your boss/
-responsible adult)
 
 </code>
 </div>

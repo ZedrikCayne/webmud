@@ -94,6 +94,18 @@ code {
     max-height: 20vh;
     min-height: 20vh;
 }
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
 </style>
 </head>
 <body>
@@ -103,11 +115,11 @@ Welcome to webmud
 
 The google login is more or less a speed bump for anyone trying to abuse the system. While they do provide us with your name and what not, we don't log it or store it on the server beyond the minimum amount of time it takes to process that you have a valid login.
 
-We don't log anything, all data is ephemeral to the server. There is one cookie that is required to keep your session together. Your session will remain valid until the server resets or 24 hours without logging in whatever comes first.
+We don't log anything but your ip address and what pages you access. All other data is ephemeral to the server unless you login with a username and password. By necessity we have to hang onto your username and a hashed version of your password. There is one cookie that is required to keep your session together. Your session will remain valid until the server resets.
 
-That being said, all of your chat backscroll is saved on the server, max of 800 lines or 16k per mud connection.
+That being said, all of your chat backscroll is saved on the server, max of 800 lines or 16k per mud connection. We do not keep track of or log your incoming messages and commands for any longer than we have to to send it along to the mud you are connected to.
 
-Go ahead and check out the source code on github <a href="https://github.com/ZedrikCayne/webmud">https://github.com/ZedrikCayne/webmud.git</a> and the webserver upon which it is based <a href="https://github.com/ZedrikCayne/crankshaft">https://github.com/ZedrikCayne/crankshaft</a>
+<div>Go ahead and check out the source code on github <a href="https://github.com/ZedrikCayne/webmud">https://github.com/ZedrikCayne/webmud.git</a> and the webserver upon which it is based <a href="https://github.com/ZedrikCayne/crankshaft">https://github.com/ZedrikCayne/crankshaft</a></div>
 </code>
 <div>
 </body>
