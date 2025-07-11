@@ -472,7 +472,7 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
     return false;
 }
 
-#define SEND_FRAME(__WS__,__FRAME__,__GOTO__) if((__FRAME__)==NULL||CS_WS_pushFrame(__WS__,__FRAME__)) { goto __GOTO__; }
+#define SEND_FRAME(__WS__,__FRAME__,__GOTO__) if((__FRAME__)==NULL||CS_WS_pushFrame(__WS__,__FRAME__,true)) { goto __GOTO__; }
 
 bool websocket( struct CS_ClientInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
@@ -486,7 +486,9 @@ bool websocket( struct CS_ClientInfo *info ) {
             struct CS_WebSocketFrame * nextFrame = NULL;
             while( true ) {
                 nextFrame = CS_WS_nextIncomingFrame( gws );
+                if( nextFrame == NULL ) CS_LOG_LOUD("NO frame.");
                 if( nextFrame == NULL ) break;
+                CS_LOG_LOUD("FrameIn: %.*s", nextFrame->payloadLength, nextFrame->payload );
                 switch( nextFrame->opcode ) {
                     //We must return a pong for any ping we get.
                     case CS_WS_OPCODE_PING:
@@ -497,6 +499,9 @@ bool websocket( struct CS_ClientInfo *info ) {
                     case CS_WS_OPCODE_TEXT:
                         if( dealWithUserInput( gws, user, nextFrame ) )
                             goto ERROR_CLOSE;
+                        break;
+                    case CS_WS_OPCODE_BINARY:
+                        //CS_WS_unlockFrame( gws );
                         break;
                     default:
                         break;

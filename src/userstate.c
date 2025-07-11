@@ -8,6 +8,7 @@
 #include <crankshaft/mutex.h>
 #include <crankshaft/tempbuff.h>
 #include <crankshaft/json.h>
+#include <crankshaft/util.h>
 #include "userstate.h"
 
 static struct CS_SlabAllocator *backscrolls = NULL;
@@ -294,7 +295,7 @@ bool DisconnectMud( struct MudState *mud, bool lock ) {
         if( lock ) CS_mutexUnlock( mud->socketMutex );
         return true;
     }
-    if( lock ) CS_socketClose( mud->mudSocket );
+    CS_socketClose( mud->mudSocket );
     mud->mudSocket = NULL;
     CS_mutexUnlock( mud->socketMutex );
     return false;
@@ -335,7 +336,6 @@ void DestroyUserState( struct UserState *userState ) {
             CS_LIST_ITER( userState->websockets, listItem ) {
                 struct CS_WebSocket *ws = (struct CS_WebSocket *)listItem->what;
                 CS_WS_close( ws, CS_WS_CLOSE_GOING_AWAY );
-                CS_WS_destroy( ws );
             }
             CS_listDestroy( userState->websockets );
         }
@@ -369,12 +369,12 @@ void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only,
     }
 }
 
-void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
+static void EverythingToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser, const char *name ) {
     if( !userState || !what || length == 0 ) return;
     if( lockUser ) CS_mutexLock( userState->mutex );
     struct CS_JsonNode *overall = CS_jsonNodeReset( userState->jsonForOutput );
     struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
-    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "status", what, length );
+    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, name, what, length );
     if( !text ) return;
     struct CS_StringBuilder *sb = userState->sbForOutput;
     CS_SB_reset( sb );
@@ -382,38 +382,38 @@ void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, co
     //struct CS_StringBuilder *sb = CS_jsonNodePrintable( overall );
     if( !sb ) return;
 
-    CS_LIST_ITER( userState->websockets, item ) {
-        struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
-        if( ws && (!only || ws == only) ) {
-            struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, CS_SB_buffer(sb), CS_SB_size(sb) );
-            CS_WS_pushFrame( ws, returnFrame );
-        }
+    int currentSize = CS_SB_size( sb );
+    int newSize = CS_align( currentSize, 4 );
+    for( int i = currentSize; i < newSize; ++i ) {
+        CS_SB_appendChar( sb, ' ' );
     }
-    if( lockUser ) CS_mutexUnlock( userState->mutex );
-}
-
-void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
-    if( !userState || !what || length == 0 ) return;
-    if( lockUser ) CS_mutexLock( userState->mutex );
-    struct CS_JsonNode *overall = CS_jsonNodeReset( userState->jsonForOutput );
-    struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
-    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, "text", what, length );
-    if( !text ) return;
-    struct CS_StringBuilder *sb = userState->sbForOutput;
-    CS_SB_reset( sb );
-    CS_jsonNodePrintableToStringBuilder( overall, sb );
-
+    CS_SB_appendChar( sb, '\r' );
+    CS_SB_appendChar( sb, '\n' );
+    CS_SB_appendChar( sb, '\r' );
+    CS_SB_appendChar( sb, '\n' );
+    const struct CS_ListItem *toRemove = NULL;
     CS_LIST_ITER( userState->websockets, item ) {
+        if( toRemove ) CS_listRemove( userState->websockets, toRemove );
+        toRemove = NULL;
+
         struct CS_WebSocket *ws = (struct CS_WebSocket *)item->what;
         if( ws && (!only || ws == only) ) {
             struct CS_WebSocketFrame *returnFrame = CS_WS_createFrame( ws, CS_WS_OPCODE_BINARY, false, CS_SB_buffer(sb), CS_SB_size(sb) );
-            if ( CS_WS_pushFrame( ws, returnFrame ) ) {
-                
+            if( CS_WS_pushFrame( ws, returnFrame, true) ) {
+                CS_WS_close( ws, CS_WS_CLOSE_GOING_AWAY );
+                toRemove = item;
             }
         }
     }
-    SendStatus( userState, false );
+    if( toRemove ) CS_listRemove( userState->websockets, toRemove );
     if( lockUser ) CS_mutexUnlock( userState->mutex );
+}
+void BinToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
+    EverythingToWebsockets( userState, only, what, length, lockUser, "status" );
+}
+
+void TextToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser ) {
+    EverythingToWebsockets( userState, only, what, length, lockUser, "text" );
 }
 
 #define MAX_ACCEPTABLE_STRING 32767

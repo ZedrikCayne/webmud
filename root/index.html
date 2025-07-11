@@ -270,11 +270,16 @@ body {
         }
 
         function handleBinaryMessage( text ) {
+            var obj = null;
             try {
-                var obj = JSON.parse( text );
-                if( obj.status ) setStatusMessage( obj.status );
-                if( obj.text ) addLine( obj.text );
+                obj = JSON.parse( text );
             } catch (ex) {
+                console.log(ex);
+                sendBin("For bad text");
+            }
+            if( obj !== null ) {
+                if( obj.status ) { sendBin("ForStatus"); setStatusMessage( obj.status ); }
+                if( obj.text ){ sendBin("ForLineOfText"); addLine( obj.text );}
             }
         }
 
@@ -283,9 +288,11 @@ body {
                 try {
                     event.data.text().then( handleBinaryMessage );
                 } catch (error) {
+                    sendBin("on Error");
                     console.error("Error on blob.",error);
                 }
             } else {
+                sendBin("Text Line");
                 addLine( event.data );
             }
         }
@@ -330,11 +337,26 @@ body {
             } 
         }
 
+        let AB = new ArrayBuffer(2);
+        function sendBin(why) {
+            if( globalWebsocket == null ) {
+                console.log("Websocket not there");
+                return;
+            }
+            try {
+                console.log("Sending OK back " + why);
+                globalWebsocket.send(AB);
+            } catch (ex) {
+                console.log("FAIL " + ex);
+            }
+        }
+
         function sendText( theText ) {
             if( globalWebsocket == null ) startWebsocket();
             if( inputCache.length > maxBackscroll ) inputCache.shift();
             inputCache.push( theText );
             try {
+                console.log("Sending " + theText );
                 globalWebsocket.send( theText + "\r\n" );
             } catch ( ex ) {
                 setStatusMessage("Websocket failed to send.");

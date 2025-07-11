@@ -200,7 +200,7 @@ int main(int argc, char *argv[] ) {
         CS_LOG_ERROR("Cannot init global temp space.");
         return -1;
     }
-    if( CS_sslInit(NULL,NULL,NULL) ) {
+    if( CS_sslInit(keyFile,certFile,selfSignHostname) ) {
         CS_LOG_ERROR("Error initializing ssl.");
         return -1;
     }
@@ -210,7 +210,7 @@ int main(int argc, char *argv[] ) {
         return -1;
     }
 
-    CS_mutexDebug(false);
+    //CS_mutexDebug(true);
 
     startApplication(autoLogin,allowNonRoutable, adminEmail);
     CS_LOG_INFO("Server Name: %s", serverName);
