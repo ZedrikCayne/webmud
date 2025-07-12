@@ -343,6 +343,16 @@ void DestroyUserState( struct UserState *userState ) {
     }
 }
 
+bool match( const char *filter, const char *haystack, int length ) {
+    if( filter == NULL ) return true;
+    int filterLen = strlen(filter);
+    for( int i = 0; i < length - filterLen; ++i ) {
+        if( strncmp( filter, haystack + i, filterLen ) == 0 )
+            return true;
+    }
+    return false;
+}
+
 void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only, int number, char *filter, bool lock, bool lockUser ) {
     struct CS_Mutex *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
     if( mutex ) {
@@ -357,7 +367,9 @@ void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only,
             }
             while( backscrollItem ) {
                 struct BackscrollLine *current = (struct BackscrollLine *)backscrollItem->what;
-                TextToWebsockets( mud->user, only, current->head, current->size, lockUser );
+                if( match( filter, current->head, current->size ) ) {
+                    TextToWebsockets( mud->user, only, current->head, current->size, lockUser );
+                }
                 backscrollItem = backscrollItem->next;
             }
         }

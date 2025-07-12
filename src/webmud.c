@@ -315,6 +315,12 @@ static bool recallCommand( struct CS_WebSocket *ws, struct UserState *state, con
     int numLines = strtol( index, NULL, 10 );
     if( numLines == 0 ) return false;
     char *filter = strtok_r( NULL, " ", &savePtr );
+    if( filter != NULL ) {
+        int nLen = strlen( filter );
+        for( int i = nLen - 1; i>=0; --i ) {
+            if( isspace( filter[i] ) ) filter[i] = 0;
+        }
+    }
     NullStringToWebsockets( state, ws, "Recall Start", true );
     MudBackscrollToWebsockets( (struct MudState *)state->front->what, ws, numLines, filter, true, true );
     NullStringToWebsockets( state, ws, "Recall End", true );
