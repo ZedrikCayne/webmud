@@ -164,6 +164,7 @@ a:active {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <div class="output-area" id="outputDiv"></div>
     </div>
+    <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
     <div style="position: relative" class="bottom-screen-part">
         <div id="lebar" class="statusbar lowerpadded">
             DISCONNECTED
@@ -265,8 +266,25 @@ a:active {
             lebar.innerText = text;
         }
 
+        let scrollbackTimeout = 2000;
+
+
+        function deleteLineFromAria() {
+
+            try {
+            if( screenReaderElement.firstChild )
+                screenReaderElement.removeChild( screenReaderElement.firstChild );
+            }catch(e){console.log("oops.")};
+            setTimeout( deleteLineFromAria, scrollbackTimeout );
+        }
+
         function addLine( text ) {
             let wantBottom = outputScrollDiv.scrollTop > (outputDiv.scrollHeight - (outputDiv.scrollHeight * (10.0 / 100.0)));
+            if( text != "\r\n" ) {
+                let screenReaderText = document.createElement("div");
+                screenReaderText.textContent = text;
+                screenReaderElement.appendChild( screenReaderText );
+            }
             let newElement = document.createElement("div");
             newElement.textContent = text;
             let convertedHTML = newElement.innerHTML;
@@ -382,6 +400,7 @@ a:active {
 
         window.onload = function () {
             startWebsocket();
+            deleteLineFromAria();
             outputScrollDiv.scrollTop = outputDiv.scrollHeight;
 
         }
