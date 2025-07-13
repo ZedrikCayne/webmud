@@ -266,15 +266,13 @@ a:active {
             lebar.innerText = text;
         }
 
-        let scrollbackTimeout = 2000;
-
+        let scrollbackTimeout = 5000;
 
         function deleteLineFromAria() {
-
             try {
-            if( screenReaderElement.firstChild )
-                screenReaderElement.removeChild( screenReaderElement.firstChild );
-            }catch(e){console.log("oops.")};
+                if( screenReaderElement.firstChild )
+                    screenReaderElement.removeChild( screenReaderElement.firstChild );
+            }catch(e) {};
             setTimeout( deleteLineFromAria, scrollbackTimeout );
         }
 
