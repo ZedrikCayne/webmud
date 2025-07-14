@@ -123,6 +123,22 @@ Switch to the last connection
 
 Select your world by number
 
+/gag &lt;name of gag&gt; &lt;regex&gt;
+
+Creates a temporary gag. Removes any line that matches the regex. (Javascript format regex, but it also means you can just /gag jerry Jerry and it will gag anylike that has Jerry on it.)
+
+/hilight &lt;name of hilight&gt; &lt;regex&gt;
+
+Creates a temporary hilight, bolds a line that matches the regular expression.
+
+/list
+
+Lists your gags and hilights.
+
+/delete &lt;name of gag or hilight&gt;
+
+Deletes the specified gag or hilight.
+
 /disconnect
 
 Disconnect your current connection. Keeps your backscroll and you can /connect again.
