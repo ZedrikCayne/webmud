@@ -276,23 +276,49 @@ a:active {
             setTimeout( deleteLineFromAria, scrollbackTimeout );
         }
 
-        function addLine( text ) {
+        var zeRegexes = {};
+        console.log( zeRegexes );
+
+        function addLine( text, skipRegex ) {
             let wantBottom = outputScrollDiv.scrollTop > (outputDiv.scrollHeight - (outputDiv.scrollHeight * (10.0 / 100.0)));
-            if( text != "\r\n" ) {
-                let screenReaderText = document.createElement("div");
-                screenReaderText.textContent = text;
-                screenReaderElement.appendChild( screenReaderText );
+            let regexOption = "none";
+            if( skipRegex === undefined ) {
+                try {
+                    if( zeRegexes ) {
+                        let keys = Object.keys(zeRegexes);
+                        keys.forEach( function (aKey) {
+                            let val = zeRegexes[aKey];
+                            if( text.match( val.actualRegex ) ) {
+                                if( val.what == "gag" )
+                                    regexOption = "gag";
+                                if( val.what == "hilight" )
+                                    if( regexOption != "gag" )
+                                        regexOption = "hilight";
+                            }
+                        } );
+                    }
+                } catch (e) {};
             }
-            let newElement = document.createElement("div");
-            newElement.textContent = text;
-            let convertedHTML = newElement.innerHTML;
-            newElement.innerHTML = convertedHTML.replace(/(https?:\/\/[^\s"'`<>]+)/g, (url) => { return `<a href="${url}" target="_blank">${url}</a>`; });
-            
-            outputDiv.appendChild( newElement );
-            if( outputDiv.childElementCount > maxBackscroll )
-                outputDiv.removeChild( outputDiv.firstChild );
+            if( regexOption != "gag" ) {
+                if( text != "\r\n" ) {
+                    let screenReaderText = document.createElement("div");
+                    screenReaderText.textContent = text;
+                    screenReaderElement.appendChild( screenReaderText );
+                }
+                let newElement = document.createElement("div");
+                newElement.textContent = text;
+                let convertedHTML = newElement.innerHTML;
+                newElement.innerHTML = convertedHTML.replace(/(https?:\/\/[^\s"'`<>]+)/g, (url) => { return `<a href="${url}" target="_blank">${url}</a>`; });
+                if ( regexOption == "hilight" ) {
+                    newElement.style = "font-weight:bold";
+                }
                 
-            if( wantBottom ) outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+                outputDiv.appendChild( newElement );
+                if( outputDiv.childElementCount > maxBackscroll )
+                    outputDiv.removeChild( outputDiv.firstChild );
+                    
+                if( wantBottom ) outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+            }
         }
 
         function handleBinaryMessage( text ) {
@@ -301,11 +327,10 @@ a:active {
                 obj = JSON.parse( text );
             } catch (ex) {
                 console.log(ex);
-                sendBin("For bad text");
             }
             if( obj !== null ) {
-                if( obj.status ) { sendBin("ForStatus"); setStatusMessage( obj.status ); }
-                if( obj.text ){ sendBin("ForLineOfText"); addLine( obj.text );}
+                if( obj.status ) { setStatusMessage( obj.status ); }
+                if( obj.text ){ addLine( obj.text );}
             }
         }
 
@@ -314,11 +339,9 @@ a:active {
                 try {
                     event.data.text().then( handleBinaryMessage );
                 } catch (error) {
-                    sendBin("on Error");
                     console.error("Error on blob.",error);
                 }
             } else {
-                sendBin("Text Line");
                 addLine( event.data );
             }
         }
@@ -333,6 +356,7 @@ a:active {
             closeWebsocket();
         }
 
+
         function sendBox() {
             let handled = false;
             if( inputBox.innerText[0] == '/' ) {
@@ -344,6 +368,59 @@ a:active {
                     inputBox.innerText.startsWith( "/logoff" ) ) {
                     handled = true;
                     window.location.replace("/logout");
+                }
+                if( inputBox.innerText.startsWith( "/gag" ) ) {
+                    handled = true;
+                    let splits = inputBox.innerText.split(" ");
+                    if( splits.length > 2 ) {
+                        let newRegex = {};
+                        newRegex.name = splits[1];
+                        newRegex.reg = splits[2].trim();
+                        newRegex.what = "gag";
+                        newRegex.actualRegex = new RegExp(splits[2].trim());
+                        zeRegexes[splits[1]] = newRegex;
+                    } else {
+                        setStatusMessage("Command is /gag <name> <regex>");
+                    }
+                }
+                if( inputBox.innerText.startsWith( "/hilite" ) ||
+                    inputBox.innerText.startsWith( "/hilight" ) ) {
+                    handled = true;
+                    let splits = inputBox.innerText.split(" ");
+                    if( splits.length > 2 ) {
+                        let newRegex = {};
+                        newRegex.name = splits[1];
+                        newRegex.reg = splits[2].trim();
+                        newRegex.what = "hilight";
+                        newRegex.actualRegex = new RegExp(splits[2].trim());
+                        zeRegexes[splits[1]] = newRegex;
+                    } else {
+                        setStatusMessage("Command is /hilight <name> <regex>");
+                    }
+                }
+                if( inputBox.innerText.startsWith("/list") ) {
+                    handled = true;
+                    if( zeRegexes ) {
+                        let keys = Object.keys(zeRegexes);
+                        if( keys.length == 0 ) {
+                            addLine("No highlight or gag definitions.\r\n");
+                        } else {
+                            addLine("Highlight and gag definition start\r\n", true);
+                            keys.forEach( function (aKey) {
+                                let val = zeRegexes[aKey];
+                                addLine( "/" + val.what + " " + val.name + " " + val.reg + "\r\n", true );
+                            } );
+                            addLine("Highlight and gag definition end\r\n", true);
+                        }
+                    }
+                }
+                if( inputBox.innerText.startsWith("/del") ) {
+                    let splits = inputBox.innerText.split(" ");
+                    handled = true;
+                    if( splits.length > 1 ) {
+                        let whatToDel = splits[1].trim();
+                        try { delete zeRegexes[whatToDel]; } catch (e) {};
+                    }
                 }
             } 
             if( !handled ) sendText( inputBox.innerText );
@@ -361,20 +438,6 @@ a:active {
                     closeWebsocket();
                 }
             } 
-        }
-
-        let AB = new ArrayBuffer(2);
-        function sendBin(why) {
-            /*
-            if( globalWebsocket == null ) {
-                console.log("Websocket not there");
-                return;
-            }
-            try {
-                globalWebsocket.send(AB);
-            } catch (ex) {
-                console.log("FAIL " + ex);
-            }*/
         }
 
         function sendText( theText ) {
