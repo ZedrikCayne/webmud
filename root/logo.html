@@ -1,0 +1,573 @@
+<html>
+<head>
+    <title>logo</title>
+    <meta charset="utf-8"></meta>
+    <meta name="HandheldFriendly" content="true"></meta>
+    <meta name="MobileOptimized" content="320"></meta>
+    <meta name="viewport" content="initial-scale=1.0, width=device-width, user-scalable=no"></meta>
+    <style>
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+/* Reset Ends */
+
+html {
+    align: center;
+    align-content: center;
+    background-color: #606060;
+}
+body,body#wholeBody,code,textarea {
+    margin: 0px auto;
+    padding: 0px;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Courier New', monospace;
+    max-width:1024px;
+    line-height:1.3;
+    font-size:18px;
+    color:#E0E0E0;
+    width: 100%;
+    background-color:#000000;
+    color: #E0E0E0;
+    overflow: hidden;
+    scrollbar-color: #404040 #808080;
+    scrollbar-width: thin;
+}
+body {
+    min-height: 100dvh;
+    max-height: 100dvh;
+}
+.scroll {
+    overflow-y: scroll;
+}
+/*Where the scroll happens*/
+.top-screen-part {
+    min-height: 80dvh;
+    max-height: 80dvh;
+}
+/*Input area*/
+.bottom-screen-part {
+    min-height: 20dvh;
+    max-height: 20dvh;
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: column;
+}
+.output-area {
+    margin: auto;
+    width: 95%;
+    max-width: 95%;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.input-area, .input-area:focus {
+    width: calc(90% - 2em);
+    min-width: calc(90% - 2em);
+    height: 95%;
+    min-height: 95%;
+    outline: none; 
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.lowerpadded {
+    padding-left: 2.5%;
+    padding-right: 2.5%;
+}
+.input-area > div {
+    float: left;
+}
+.statusbar {
+    height: 1.5em;
+    width: 95%;
+    background-color: #707070;
+    color: #000000;
+    display: block;
+    font-weight: bold;
+}
+
+.topright {
+    position: absolute;
+    top: 1.5em;
+    right: 1em;
+    width: 50px;
+    height: 50px;
+}
+
+.bottomright {
+    position: absolute;
+    bottom: 0px;
+    right: 1em;
+    width: 50px;
+    height: 50px;
+}
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
+
+</style>
+</head>
+<body id="wholeBody">
+    <noscript>You're going to need javascript for any of this to work.</noscript>
+    <div id="outputDiv" class="top-screen-part" style="margin:auto;align-content:center">
+    </div>
+    <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
+    <div style="position: relative" class="bottom-screen-part">
+        <div id="lebar" class="statusbar lowerpadded">
+            DISCONNECTED
+        </div>
+        <div style="z-index: 50" class="scroll">
+            <div contenteditable="true" class="input-area lowerpadded" id="inputBox" type="text" autofocus></div>
+        </div>
+        <div id="upbutton" class="topright" onclick="inputCacheUp()">
+        <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+   <path d="M5 45 L25 5 L45 45 L5 45" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
+</svg></div>
+        <div id="downbutton" class="bottomright" onclick="inputCacheDown()">
+        <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+   <path d="M5 5 L25 45 L45 5 L5 5" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
+</svg> </div>
+    </div>
+    <script>
+        inputBox.innerText = "";
+
+        var inputCache = [];
+        var currentCacheLine = null;
+        var inputCacheIndex = 0;
+
+        function inputCacheUp() {
+            if( inputCache.length < 1 ) return;
+            if( currentInputCacheIndex == 0 ) {
+                currentInputCacheIndex = 1;
+                currentLineCache = inputBox.innerText;
+            } else {
+                currentInputCacheIndex++;
+            }
+            while( currentInputCacheIndex > inputCache.length ) {
+                --currentInputCacheIndex;
+            }
+            inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+        }
+
+        function inputCacheDown() {
+            if( currentInputCacheIndex > 0 ) {
+                --currentInputCacheIndex;
+            }
+            if( currentInputCacheIndex == 0 ) {
+                if( currentLineCache !== null && currentLineCache !== undefined ) {
+                    inputBox.innerText = currentLineCache;
+                }
+            } else {
+                if( inputCache.length > 0 ) {
+                    inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+                }
+            }
+        }
+
+        function inputCacheReset() {
+            currentCacheIndex = 0;
+            currentLineCache = null;
+        }
+
+        //On any keypress...focus the input box
+        wholeBody.addEventListener( "keydown", function (event) {
+	    switch( event.key ) {
+            case "ArrowUp":
+                //back one
+                inputCacheUp();
+                break;
+            case "ArrowDown":
+                inputCacheDown();
+                break;
+            default:
+                inputBox.focus();
+                break;
+            }
+        } );
+
+        inputBox.addEventListener( "touchstart", function (event) {
+            inputBox.focus();
+        } );
+
+        inputBox.addEventListener( "keypress", function (event) {
+            if( event.key == "Enter" ) {
+                event.preventDefault();
+                sendInputBox();
+            } else {
+                inputCacheReset();
+            }
+        });
+
+        function setStatusMessage( text ) {
+            lebar.innerText = text;
+        }
+
+        let scrollbackTimeout = 5000;
+
+        function deleteLineFromAria() {
+            try {
+                if( screenReaderElement.firstChild )
+                    screenReaderElement.removeChild( screenReaderElement.firstChild );
+            }catch(e) {};
+            setTimeout( deleteLineFromAria, scrollbackTimeout );
+        }
+
+        function sendInputBox() {
+            let handled = false;
+            let newElement = document.createElement("div");
+            newElement.textContent = inputBox.innerText;
+            screenReaderElement.appendChild( newElement );
+            processCommand( inputBox.innerText );
+        }
+
+        function clearInputBox() {
+            inputBox.innerText = "";
+        }
+
+        var globalSvgEditable;
+        var turtle = null;
+        var imageSpace = {"width":0,"height":0};
+        var rootTurtleState = {"width":0,"height":0,"x":0,
+            "y":0,"rot":0,"pen":true,"pencolor":"#ffffff",
+            "fill":"none","penwidth":1,
+            "lastpathoperation":0,"accumulator":"","svg":""};
+        var globalTurtleState = structuredClone( rootTurtleState );
+
+        function clearOutput() {
+            globalSvgEditable = null;
+            outputDiv.innerHTML = "";
+            globalTurtleState = structuredClone( rootTurtleState );
+        }
+        function svgStart(turtleState) {
+            return '<svg width="' + turtleState.width + '" height="' + turtleState.height + '" xmlns="http://www.w3.org/2000/svg">';
+        }
+        function svgEnd() {
+            return '</svg>';
+        }
+        function pathStart( turtleState ) {
+            return '<path d="';
+        }
+        function pathEnd( turtleState ) {
+            return (turtleState.fill=="none"
+                    ?''
+                    :(turtleState.lastpathoperation=='Z'?'':'Z')) +
+                    '" style="stroke:' + turtleState.pencolor +
+                    ';stroke-width:' + turtleState.penwidth + 
+                    ';fill:' + turtleState.fill + '"/>';
+        }
+
+        function xyFromContext(x,y,turtleContext) {
+            return {"x":Number(x),"y":Number(turtleContext.height)-Number(y)};
+        }
+
+        function applyPathOp( op, x, y, turtleContext ) {
+            lastOp = turtleContext.lastpathoperation;
+            turtleContext.lastpathoperation = op;
+            turtleContext.x = x;
+            turtleContext.y = y;
+            position = xyFromContext(x,y,turtleContext);
+            turtleContext.accumulator += (lastOp!=op?op:" ") +
+                position.x + " " + position.y;
+            return true;
+        }
+
+        function privateMoveTo( x, y, turtleContext ) {
+            if( turtleContext.pen ) {
+                applyPathOp( "L", x, y, turtleContext );
+            } else {
+                applyPathOp( "M", x, y, turtleContext );
+            }
+            applyTurtle( turtleContext );
+        }
+
+        function handleMoveTo( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 3 ) {
+                setStatusMessage("Command is 'moveto <x> <y>'");
+                return true;
+            }
+            privateMoveTo( turtleCommand[1], turtleCommand[2], turtleContext );
+            return false;
+        }
+
+        function handlePen( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'pen [up|down]'");
+                return null;
+            }
+            switch( turtleCommand[ 1 ] ) {
+                case "up":
+                    turtleContext.pen = false;
+                    break;
+                case "down":
+                    turtleContext.pen = true;
+                    break;
+                default:
+                    setStatusMessage("Command needs up or down. Was provided with " + sturtleCommand[1]);
+                    return null;
+            }
+            return "";
+        }
+
+        function handleClear( turtleCommand, turtleState ) {
+            globalSvgEditable = null;
+            outputDiv.innerHTML = "";
+            globalTurtleState = structuredClone( rootTurtleState );
+            return false;
+        }
+
+        function handleForward( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'forward <length>'");
+                return true;
+            }
+            let length = Number(turtleCommand[1]);
+            if( length = NaN ) {
+                setStatusMessage("Length must be a number");
+                return true;
+            }
+            let aSin = Math.sin( turtleContext.rot * 3.141592654 / 180.0 );
+            let aCos = Math.cos( turtleContext.rot * 3.141592654 / 180.0 );
+
+            privateMoveTo( turtleContext.x + ( aSin * turtleCommand[1] ),
+                turtleContext.y + ( aCos * turtleCommand[1] ), turtleContext );
+
+            return false;
+        }
+
+        function handleTurn( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'turn <angle>'");
+                return true;
+            }
+            let rotVal = Number( turtleCommand[1] );
+            if( rotVal == NaN ) {
+                setStatusMessage("Angle must be a number");
+                return true;
+            }
+            turtleContext.rot = (turtleContext.rot + rotVal) % 360.0;
+            applyTurtle( turtleContext );
+            return false;
+        }
+
+        function handleTurnto( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'turn <angle>'");
+                return true;
+            }
+            let rotVal = Number( turtleCommand[1] );
+            if( rotVal == NaN ) {
+                setStatusMessage("Angle must be a number");
+                return true;
+            }
+            turtleContext.rot = (rotVal % 360.0);
+            applyTurtle( turtleContext );
+            return false;
+        }
+
+        function applyTurtle( turtleContext ) {
+            turtleContext.svg = turtleContext.accumulator +
+                pathEnd( turtleContext ) + svgEnd();
+
+            globalSvgEditable.innerHTML = turtleContext.svg;
+            
+            let xform = "translate( " + (Number(turtleContext.x) - Number(turtle.whmin/2)) + "px, " + (-1 * (Number(turtleContext.y) + Number(turtle.whmin))) + "px ) rotate( " + Number(turtleContext.rot) + "deg )";
+
+            console.log(xform);
+            turtle.style.transform = xform;
+        }
+
+        function handleNew( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 3 ) {
+                setStatusMessage( "Command is 'new <x> <y>'" );
+                return true;
+            }
+            var x = Number(turtleCommand[1]);
+            var y = Number(turtleCommand[2]);
+            clearOutput();
+            turtleContext = globalTurtleState;
+            turtle = null;
+            turtleContext.width = x;
+            turtleContext.height = y;
+            let svgDiv = document.createElement("div");
+            svgDiv.style.width=turtleContext.width;
+            svgDiv.style.height=turtleContext.height;
+            svgDiv.style.position="relative";
+            outputDiv.appendChild( svgDiv );
+            let svgNonEditable = document.createElement("div");
+            svgNonEditable.style="position:absolute;top:0;left:0";
+
+            let innerHtmlString =   "<svg width=\"" + x + "\" " +
+                                    "height=\"" + y + "\" " +
+                                    "xmlns=\"http://www.w3.org/2000/svg\">" +
+                                    "<path d=\"" + 
+                                        "M 0 0 " + 
+                                        "L " + x + " 0 " + 
+                                        "L " + x + " " + y +
+                                        "L 0 " + y +
+                                        "Z\" " +
+                                        "style=\"stroke:#FFFFFF;stroke-width:1;fill:none\"" +
+                                        "/></svg>";
+            let svgEditable = document.createElement("div");
+            svgNonEditable.innerHTML = innerHtmlString;
+            svgEditable.innerHTML = "";
+            svgDiv.appendChild( svgNonEditable );
+            svgDiv.appendChild( svgEditable );
+            svgDiv.appendChild( grabTurtle(x,y) );
+            outputDiv.appendChild( svgDiv );
+
+            turtleContext.width = x;
+            turtleContext.height = y;
+            turtleContext.x = x/2;
+            turtleContext.y = y/2;
+            turtleContext.rot = 0;
+            turtleContext.accumulator = svgStart( turtleContext ) + pathStart( turtleContext );
+            //Put the first move in.
+            applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
+
+            globalSvgEditable = svgEditable;
+
+            applyTurtle( turtleContext );
+
+            return false;
+        }
+
+        function handleFill( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage( "Command is 'fill <color>'" );
+                return true;
+            }
+            turtleContext.fill = turtleCommand[1];
+            applyTurtle( turtleContext );
+
+            return false;
+        }
+
+        function handleColor( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage( "Command is 'color <color>'" );
+                return true;
+            }
+            if( turtleContext.pencolor != turtleCommand[1] ) {
+                turtleContext.accumulator += pathEnd(turtleContext);
+                turtleContext.pencolor = turtleCommand[1];
+                turtleContext.accumulator += pathStart(turtleContext);
+                turtleContext.lastpathoperator = "0";
+                applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
+            }
+
+
+            return false;
+        }
+
+        var commands = [
+            { "command":"moveto", "handler":handleMoveTo },
+            { "command":"pen", "handler":handlePen },
+            { "command":"forward", "handler":handleForward },
+            { "command":"turn", "handler":handleTurn },
+            { "command":"turnto", "handler":handleTurnto },
+            { "command":"clear", "handler":handleClear },
+            { "command":"new", "handler":handleNew },
+            { "command":"fill", "handler":handleFill },
+            { "command":"color", "handler":handleColor } ];
+
+        function applyCommand( turtleCommand, turtleContext ) {
+            for( var i = 0; i < commands.length; ++i ) {
+                if( turtleCommand[0] == commands[i].command ) {
+                    return commands[i].handler( turtleCommand, turtleContext );
+                }
+            }
+            setStatusMessage("I did not understand " + turtleCommand[0]);
+            return true;
+        }
+
+        function grabTurtle(x,y) {
+            if( turtle === null ) {
+                let whmin = Math.min(x/10,y/10);
+                let turtleWidth = Math.max( 30, whmin );
+                let turtleHeight = Math.max( 30, whmin );
+                whmin = Math.min(turtleWidth, turtleHeight);
+                turtle = document.createElement("div");
+                turtle.whmin = whmin;
+                turtle.style.position="absolute";
+                turtle.style.width=turtleWidth;
+                turtle.style.height=turtleHeight;
+                turtle.style.transformOrigin="center bottom";
+                turtle.innerHTML=
+                    svgStart( {width:turtleWidth,height:turtleHeight} ) +
+                    '<path d="M0 ' + turtleHeight + ' L' + turtleWidth/2 + ' 0 ' + turtleWidth + ' ' + turtleHeight + ' Z" style="stroke:#ffffff;stroke-width:1;fill:#e0e0e0"/>' +
+                    svgEnd();
+            }
+            return turtle;
+        }
+
+        function processCommand( command ) {
+            let handled = false;
+            let trimmedCommand = command.trim();
+            let splits = command.split(" ");
+            splits = splits.filter( (ell) => ell.length > 0 );
+        
+            handled = !applyCommand( splits, globalTurtleState );
+
+            if( handled ) {
+                clearInputBox();
+            }
+        }
+
+        window.onload = function () {
+            deleteLineFromAria();
+        }
+    </script>
+</body>
+</html>
