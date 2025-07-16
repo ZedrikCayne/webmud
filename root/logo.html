@@ -184,8 +184,8 @@ a:active {
         inputBox.innerText = "";
 
         var inputCache = [];
-        var currentCacheLine = null;
-        var inputCacheIndex = 0;
+        var currentLineCache = null;
+        var currentInputCacheIndex = 0;
 
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
@@ -217,7 +217,7 @@ a:active {
         }
 
         function inputCacheReset() {
-            currentCacheIndex = 0;
+            currentInputCacheIndex = 0;
             currentLineCache = null;
         }
 
@@ -282,7 +282,9 @@ a:active {
         var rootTurtleState = {"width":0,"height":0,"x":0,
             "y":0,"rot":0,"pen":true,"pencolor":"#ffffff",
             "fill":"none","penwidth":1,
-            "lastpathoperation":0,"accumulator":"","svg":""};
+            "lastpathoperation":0,"accumulator":"","svg":"",
+            "definedOperations":[] };
+
         var globalTurtleState = structuredClone( rootTurtleState );
 
         function clearOutput() {
@@ -507,9 +509,33 @@ a:active {
                 applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
             }
 
-
             return false;
         }
+        
+        function handleRepeat( turtleCommand, turtleState ) {
+            return false;
+        }
+
+        function handleTo( turtleCommand, turtleState ) {
+            return false;
+        }
+        
+        function handleEnd( turtleCommand, turtleState ) {
+            return false;
+        }
+
+        function handlePath( turtleCommand, turtleState ) {
+            return false;
+        }
+
+        function handleBackground( turtleCommand, turtleState ) {
+            return false;
+        }
+
+        function handleUndo( turtleCommand, turtleState ) {
+            return false;
+        }
+        
 
         var commands = [
             { "command":"moveto", "handler":handleMoveTo },
@@ -520,7 +546,14 @@ a:active {
             { "command":"clear", "handler":handleClear },
             { "command":"new", "handler":handleNew },
             { "command":"fill", "handler":handleFill },
-            { "command":"color", "handler":handleColor } ];
+            { "command":"color", "handler":handleColor },
+            { "command":"repeat", "handler":handleRepeat },
+            { "command":"to", "handler":handleTo },
+            { "command":"path", "handler":handlePath },
+            { "command":"end", "handler":handleEnd },
+            { "command":"background", "handler":handleBackground },
+            { "command":"undo", "handler":handleUndo }
+        ];
 
         function applyCommand( turtleCommand, turtleContext ) {
             for( var i = 0; i < commands.length; ++i ) {
