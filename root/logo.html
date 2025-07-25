@@ -177,7 +177,7 @@ a:active {
 </svg></div>
         <div id="downbutton" class="bottomright" onclick="inputCacheDown()">
         <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
-   <path d="M5 5 L25 45 L45 5 L5 5" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
+  <path d="M5 5 L25 45 L45 5 L5 5" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
 </svg> </div>
     </div>
     <script>
@@ -337,16 +337,16 @@ a:active {
         function handleMoveTo( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 3 ) {
                 setStatusMessage("Command is 'moveto <x> <y>'");
-                return true;
+                return -1;
             }
             privateMoveTo( turtleCommand[1], turtleCommand[2], turtleContext );
-            return false;
+            return 3;
         }
 
         function handlePen( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'pen [up|down]'");
-                return null;
+                return -1;
             }
             switch( turtleCommand[ 1 ] ) {
                 case "up":
@@ -359,14 +359,14 @@ a:active {
                     setStatusMessage("Command needs up or down. Was provided with " + sturtleCommand[1]);
                     return null;
             }
-            return "";
+            return 2;
         }
 
         function handleClear( turtleCommand, turtleState ) {
             globalSvgEditable = null;
             outputDiv.innerHTML = "";
             globalTurtleState = structuredClone( rootTurtleState );
-            return false;
+            return 1;
         }
 
         function handleForward( turtleCommand, turtleContext ) {
@@ -385,38 +385,89 @@ a:active {
             privateMoveTo( turtleContext.x + ( aSin * turtleCommand[1] ),
                 turtleContext.y + ( aCos * turtleCommand[1] ), turtleContext );
 
-            return false;
+            return true;
+        }
+
+        function handleBack( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'forward <length>'");
+                return -1;
+            }
+            let length = Number(turtleCommand[1]);
+            if( length = NaN ) {
+                setStatusMessage("Length must be a number");
+                return -1;
+            }
+            let aSin = Math.sin( turtleContext.rot * 3.141592654 / 180.0 );
+            let aCos = Math.cos( turtleContext.rot * 3.141592654 / 180.0 );
+
+            privateMoveTo( turtleContext.x + ( aSin * turtleCommand[1] * -1.0 ),
+                turtleContext.y + ( aCos * turtleCommand[1] * -1.0 ), turtleContext );
+
+            return 2;
         }
 
         function handleTurn( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'turn <angle>'");
-                return true;
+                return -1;
             }
             let rotVal = Number( turtleCommand[1] );
             if( rotVal == NaN ) {
                 setStatusMessage("Angle must be a number");
-                return true;
+                return -1;
             }
             turtleContext.rot = (turtleContext.rot + rotVal) % 360.0;
             applyTurtle( turtleContext );
-            return false;
+            return 2;
         }
 
         function handleTurnto( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'turn <angle>'");
-                return true;
+                return -1;
             }
             let rotVal = Number( turtleCommand[1] );
             if( rotVal == NaN ) {
                 setStatusMessage("Angle must be a number");
-                return true;
+                return -1;
             }
             turtleContext.rot = (rotVal % 360.0);
             applyTurtle( turtleContext );
-            return false;
+            return 2;
         }
+
+        function handleRight( turtleCommand, turtleContent ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'right <angle>'");
+                return -1;
+            }
+            let rotVal = Number( turtleCommand[1] );
+            if( rotVal == NaN ) {
+                setStatusMessage("Angle must be a number");
+                return -1;
+            }
+            setStatusMessage( "right " + rotVal );
+            turtleContent.rot = ((turtleContent.rot + rotVal) % 360.0);
+            applyTurtle( turtleContent );
+            return 2;
+        }
+        function handleLeft( turtleCommand, turtleContent ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command is 'left <angle>'");
+                return -1;
+            }
+            let rotVal = Number( turtleCommand[1] );
+            if( rotVal == NaN ) {
+                setStatusMessage("Angle must be a number");
+                return -1;
+            }
+            setStatusMessage( "right " + (rotVal * -1.0) );
+            turtleContent.rot = ((turtleContent.rot - rotVal) % 360.0);
+            applyTurtle( turtleContent );
+            return 2;
+        }
+
 
         function applyTurtle( turtleContext ) {
             turtleContext.svg = turtleContext.accumulator +
@@ -433,7 +484,7 @@ a:active {
         function handleNew( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 3 ) {
                 setStatusMessage( "Command is 'new <x> <y>'" );
-                return true;
+                return -1;
             }
             var x = Number(turtleCommand[1]);
             var y = Number(turtleCommand[2]);
@@ -482,24 +533,24 @@ a:active {
 
             applyTurtle( turtleContext );
 
-            return false;
+            return 3;
         }
 
         function handleFill( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage( "Command is 'fill <color>'" );
-                return true;
+                return -1;
             }
             turtleContext.fill = turtleCommand[1];
             applyTurtle( turtleContext );
 
-            return false;
+            return 2;
         }
 
         function handleColor( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage( "Command is 'color <color>'" );
-                return true;
+                return -1;
             }
             if( turtleContext.pencolor != turtleCommand[1] ) {
                 turtleContext.accumulator += pathEnd(turtleContext);
@@ -509,7 +560,7 @@ a:active {
                 applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
             }
 
-            return false;
+            return 2;
         }
         
         function handleRepeat( turtleCommand, turtleState ) {
@@ -552,7 +603,10 @@ a:active {
             { "command":"path", "handler":handlePath },
             { "command":"end", "handler":handleEnd },
             { "command":"background", "handler":handleBackground },
-            { "command":"undo", "handler":handleUndo }
+            { "command":"undo", "handler":handleUndo },
+            { "command":"right", "handler":handleRight },
+            { "command":"left", "handler":handleLeft },
+            { "command":"back", "handler":handleBack }
         ];
 
         function applyCommand( turtleCommand, turtleContext ) {
