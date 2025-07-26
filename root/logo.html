@@ -186,7 +186,7 @@ a:active {
         var inputCache = [];
         var currentLineCache = null;
         var currentInputCacheIndex = 0;
-
+        
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
             if( currentInputCacheIndex == 0 ) {
@@ -283,7 +283,9 @@ a:active {
             "y":0,"rot":0,"pen":true,"pencolor":"#ffffff",
             "fill":"none","penwidth":1,
             "lastpathoperation":0,"accumulator":"","svg":"",
-            "definedOperations":[] };
+            "definedCommands":{},
+            "globalVariables":{":PI":3.141592654,":E":2.718281828459}
+        };
 
         var globalTurtleState = structuredClone( rootTurtleState );
 
@@ -334,16 +336,32 @@ a:active {
             applyTurtle( turtleContext );
         }
 
-        function handleMoveTo( turtleCommand, turtleContext ) {
+        function parseMoveTo( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 3 ) {
                 setStatusMessage("Command is 'moveto <x> <y>'");
                 return -1;
             }
+            let theX = Number(turtleCommand[1]);
+            if( theX == NaN ) {
+                setStatusMessage("moveto <x> <y>  X needs to be a number");
+                return -1;
+            }
+            turtleCommand[1] = theX;
+            let theY = Number(turtleCommand[2]);
+            if( theY == NaN ) {
+                setStatusMessage("moveto <x> <y>  Y needs to be a number");
+                return -1;
+            }
+            turtleCommand[2] = theY;
+            return 3;
+        }
+
+        function handleMoveTo( turtleCommand, turtleContext ) {
             privateMoveTo( turtleCommand[1], turtleCommand[2], turtleContext );
             return 3;
         }
 
-        function handlePen( turtleCommand, turtleContext ) {
+        function parsePen( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'pen [up|down]'");
                 return -1;
@@ -357,9 +375,25 @@ a:active {
                     break;
                 default:
                     setStatusMessage("Command needs up or down. Was provided with " + sturtleCommand[1]);
-                    return null;
+                    return -1;
             }
             return 2;
+        }
+
+        function handlePen( turtleCommand, turtleContext ) {
+            switch( turtleCommand[ 1 ] ) {
+                case "up":
+                    turtleContext.pen = false;
+                    break;
+                case "down":
+                    turtleContext.pen = true;
+                    break;
+            }
+            return 2;
+        }
+
+        function parseClear( turtleCommand, turtleState ) {
+            return 1;
         }
 
         function handleClear( turtleCommand, turtleState ) {
@@ -369,35 +403,46 @@ a:active {
             return 1;
         }
 
-        function handleForward( turtleCommand, turtleContext ) {
+        function parseForward( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'forward <length>'");
-                return true;
+                return -1;
             }
             let length = Number(turtleCommand[1]);
-            if( length = NaN ) {
+            if( length == NaN ) {
                 setStatusMessage("Length must be a number");
-                return true;
+                return -1;
             }
+            turtleCommand[1] = length;
+            return 2;
+        }
+
+        function handleForward( turtleCommand, turtleContext ) {
+            let length = turtleCommand[1];
             let aSin = Math.sin( turtleContext.rot * 3.141592654 / 180.0 );
             let aCos = Math.cos( turtleContext.rot * 3.141592654 / 180.0 );
 
             privateMoveTo( turtleContext.x + ( aSin * turtleCommand[1] ),
                 turtleContext.y + ( aCos * turtleCommand[1] ), turtleContext );
 
-            return true;
+            return 2;
         }
 
-        function handleBack( turtleCommand, turtleContext ) {
+        function parseBack( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
-                setStatusMessage("Command is 'forward <length>'");
+                setStatusMessage("Command is 'back <length>'");
                 return -1;
             }
             let length = Number(turtleCommand[1]);
-            if( length = NaN ) {
+            if( length == NaN ) {
                 setStatusMessage("Length must be a number");
                 return -1;
             }
+            turtleCommand[1] = length;
+            return 2;
+        }
+        function handleBack( turtleCommand, turtleContext ) {
+            let length = turtleCommand[1];
             let aSin = Math.sin( turtleContext.rot * 3.141592654 / 180.0 );
             let aCos = Math.cos( turtleContext.rot * 3.141592654 / 180.0 );
 
@@ -407,7 +452,7 @@ a:active {
             return 2;
         }
 
-        function handleTurn( turtleCommand, turtleContext ) {
+        function parseTurn( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'turn <angle>'");
                 return -1;
@@ -417,14 +462,19 @@ a:active {
                 setStatusMessage("Angle must be a number");
                 return -1;
             }
+            turtleCommand[1] = rotVal;
+            return 2;
+        }
+        function handleTurn( turtleCommand, turtleContext ) {
+            rotVal = turtleCommand[1];
             turtleContext.rot = (turtleContext.rot + rotVal) % 360.0;
             applyTurtle( turtleContext );
             return 2;
         }
 
-        function handleTurnto( turtleCommand, turtleContext ) {
+        function parseTurnto( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
-                setStatusMessage("Command is 'turn <angle>'");
+                setStatusMessage("Command is 'turnto <angle>'");
                 return -1;
             }
             let rotVal = Number( turtleCommand[1] );
@@ -432,12 +482,17 @@ a:active {
                 setStatusMessage("Angle must be a number");
                 return -1;
             }
+            turtleCommand[1] = rotVal;
+            return 2;
+        }
+        function handleTurnto( turtleCommand, turtleContext ) {
+            let rotVal = turtleCommand[1];
             turtleContext.rot = (rotVal % 360.0);
             applyTurtle( turtleContext );
             return 2;
         }
 
-        function handleRight( turtleCommand, turtleContent ) {
+        function parseRight( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'right <angle>'");
                 return -1;
@@ -447,12 +502,17 @@ a:active {
                 setStatusMessage("Angle must be a number");
                 return -1;
             }
-            setStatusMessage( "right " + rotVal );
-            turtleContent.rot = ((turtleContent.rot + rotVal) % 360.0);
-            applyTurtle( turtleContent );
+            turtleCommand[1] = rotVal;
             return 2;
         }
-        function handleLeft( turtleCommand, turtleContent ) {
+
+        function handleRight( turtleCommand, turtleContext ) {
+            let rotVal = turtleCommand[1];
+            turtleContext.rot = ((turtleContext.rot + rotVal) % 360.0);
+            applyTurtle( turtleContext );
+            return 2;
+        }
+        function parseLeft( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command is 'left <angle>'");
                 return -1;
@@ -462,9 +522,13 @@ a:active {
                 setStatusMessage("Angle must be a number");
                 return -1;
             }
-            setStatusMessage( "right " + (rotVal * -1.0) );
-            turtleContent.rot = ((turtleContent.rot - rotVal) % 360.0);
-            applyTurtle( turtleContent );
+            turtleCommand[1] = rotVal;
+            return 2;
+        }
+        function handleLeft( turtleCommand, turtleContext ) {
+            let rotVal = turtleCommand[1];
+            turtleContext.rot = ((turtleContext.rot - rotVal) % 360.0);
+            applyTurtle( turtleContext );
             return 2;
         }
 
@@ -481,13 +545,27 @@ a:active {
             turtle.style.transform = xform;
         }
 
-        function handleNew( turtleCommand, turtleContext ) {
+        function parseNew( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 3 ) {
                 setStatusMessage( "Command is 'new <x> <y>'" );
                 return -1;
             }
             var x = Number(turtleCommand[1]);
+            if( x == NaN ) {
+                setStatusCommand( "new <x> <y> X must be a number." );
+                return -1;
+            }
             var y = Number(turtleCommand[2]);
+            if( y == NaN ) {
+                setStatusCommand( "new <x> <y> Y must be a number." );
+                return -1;
+            }
+            return 3;
+        }
+
+        function handleNew( turtleCommand, turtleContext ) {
+            var x = turtleCommand[1];
+            var y = turtleCommand[2];
             clearOutput();
             turtleContext = globalTurtleState;
             turtle = null;
@@ -536,22 +614,28 @@ a:active {
             return 3;
         }
 
-        function handleFill( turtleCommand, turtleContext ) {
+        function parseFill( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage( "Command is 'fill <color>'" );
                 return -1;
             }
+            return 2;
+        }
+        
+        function handleFill( turtleCommand, turtleContext ) {
             turtleContext.fill = turtleCommand[1];
             applyTurtle( turtleContext );
-
             return 2;
         }
 
-        function handleColor( turtleCommand, turtleContext ) {
+        function parseColor( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage( "Command is 'color <color>'" );
                 return -1;
             }
+            return 2;
+        }
+        function handleColor( turtleCommand, turtleContext ) {
             if( turtleContext.pencolor != turtleCommand[1] ) {
                 turtleContext.accumulator += pathEnd(turtleContext);
                 turtleContext.pencolor = turtleCommand[1];
@@ -563,61 +647,147 @@ a:active {
             return 2;
         }
         
+        function parseRepeat( turtleCommand, turtleState ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage( "Command is repeat <number>" );
+                return -1;
+            }
+            var repeats = Number(turtleCommand[1]);
+            if( repeats == NaN ) {
+                setStatusMessage( "Command needs a number of times to repeat." );
+                return -1;
+            }
+            turtleCommand[1] = repeats;
+            return 2;
+        }
         function handleRepeat( turtleCommand, turtleState ) {
-            return false;
+            var repeats = turtleCommand[1];
+            var repeatMe = turtleCommand.slice(2);
+            for( var i = 0; i < repeats; ++i ) {
+                var repeatMe = turtleCommand.slice(2);
+                applyCommands( repeatMe, turtleState );
+            }
+            return turtleCommand.length;
         }
 
+        function parseTo( turtleCommand, turtleState ) {
+        }
         function handleTo( turtleCommand, turtleState ) {
             return false;
         }
         
+        function parseEnd( turtleCommand, turtleState ) {
+        }
         function handleEnd( turtleCommand, turtleState ) {
             return false;
         }
 
+        function parsePath( turtleCommand, turtleState ) {
+        }
         function handlePath( turtleCommand, turtleState ) {
             return false;
         }
 
+        function parseBackground( turtleCommand, turtleState ) {
+        }
         function handleBackground( turtleCommand, turtleState ) {
             return false;
         }
 
+        function parseUndo( turtleCommand, turtleState ) {
+        }
         function handleUndo( turtleCommand, turtleState ) {
             return false;
         }
-        
 
         var commands = [
-            { "command":"moveto", "handler":handleMoveTo },
-            { "command":"pen", "handler":handlePen },
-            { "command":"forward", "handler":handleForward },
-            { "command":"turn", "handler":handleTurn },
-            { "command":"turnto", "handler":handleTurnto },
-            { "command":"clear", "handler":handleClear },
-            { "command":"new", "handler":handleNew },
-            { "command":"fill", "handler":handleFill },
-            { "command":"color", "handler":handleColor },
-            { "command":"repeat", "handler":handleRepeat },
-            { "command":"to", "handler":handleTo },
-            { "command":"path", "handler":handlePath },
-            { "command":"end", "handler":handleEnd },
-            { "command":"background", "handler":handleBackground },
-            { "command":"undo", "handler":handleUndo },
-            { "command":"right", "handler":handleRight },
-            { "command":"left", "handler":handleLeft },
-            { "command":"back", "handler":handleBack }
+            { "command":"moveto", "handler":handleMoveTo, "parser":parseMoveTo },
+            { "command":"pen", "handler":handlePen, "parser":parsePen },
+            { "command":"forward", "handler":handleForward, "parser":parseForward },
+            { "command":"turn", "handler":handleTurn, "parser":parseTurn },
+            { "command":"turnto", "handler":handleTurnto, "parser":parseTurnto },
+            { "command":"clear", "handler":handleClear, "parser":parseClear },
+            { "command":"new", "handler":handleNew, "parser":parseNew },
+            { "command":"fill", "handler":handleFill, "parser": parseFill },
+            { "command":"color", "handler":handleColor, "parser": parseColor },
+            { "command":"repeat", "handler":handleRepeat, "parser": parseRepeat },
+            { "command":"to", "handler":handleTo, "parser":parseTo },
+            { "command":"path", "handler":handlePath, "parser":parsePath },
+            { "command":"end", "handler":handleEnd, "parser":parseEnd },
+            { "command":"background", "handler":handleBackground, "parser":parseBackground },
+            { "command":"undo", "handler":handleUndo, "parser":parseUndo },
+            { "command":"right", "handler":handleRight, "parser":parseRight },
+            { "command":"left", "handler":handleLeft, "parser":parseLeft },
+            { "command":"back", "handler":handleBack, "parser":parseBack },
+            { "command":"hide", "handler":handleHide, "parser":parseHide },
+            { "command":"show", "handler":handleShow, "parser":parseShow }
         ];
 
-        function applyCommand( turtleCommand, turtleContext ) {
-            for( var i = 0; i < commands.length; ++i ) {
-                if( turtleCommand[0] == commands[i].command ) {
-                    return commands[i].handler( turtleCommand, turtleContext );
+        function parseHide( turtleCommand, turtleContext ) {
+            return 1;
+        }
+
+        function handleHide( turtleCommand, turtleContext ) {
+            turtle.style.display = "none";
+            return 1;
+        }
+        
+        function parseShow( turtleCommand, turtleContext ) {
+            return 1;
+        }
+
+        function handleShow( turtleCommand, turtleContext ) {
+            turtle.style.display = "block";
+        }
+
+        function parseCommand( turtleCommand, turtleContext ) {
+            var tokensEaten = 0;
+            var tokenIter = turtleCommand;
+            for( currentCommand = 0; currentCommand < turtleCommand.length; ) {
+                var tokenIter = tokenIter.slice(tokensEaten);
+                tokensEaten = 0;
+                for( var i = 0; i < commands.length; ++i ) {
+                    if( tokenIter[0] == commands[i].command ) {
+                        tokensEaten = commands[i].parser( tokenIter, turtleContext );
+                        if( tokensEaten < 1 ) return null;
+                        //rewrite original commands with modified bits.
+                        for( var j = 0; j < tokensEaten; ++j ) {
+                            turtleCommand[ currentCommand + j ] = tokenIter[ j ];
+                        }
+                        currentCommand += tokensEaten;
+                        break;
+                    }
+                }
+                
+                if( tokensEaten == 0 ) {
+                    setStatusMessage("I did not understand " + turtleCommand[currentCommand] );
+                    return null;
                 }
             }
-            setStatusMessage("I did not understand " + turtleCommand[0]);
-            return true;
+            return turtleCommand;
         }
+
+        function applyCommands( turtleCommands, turtleContext ) {
+            var tokensEaten = 0;
+            var turtleIter = turtleCommands;
+            for( currentCommand = 0; currentCommand < turtleCommands.length; ) {
+                turtleIter = turtleIter.slice( tokensEaten );
+                for( var i = 0; i < commands.length; ++i ) {
+                    if( turtleIter[0] == commands[i].command ) {
+                        console.log("Applying " + turtleIter[0]);
+                        var tokensEaten = commands[i].handler( turtleIter, turtleContext );
+                        if( tokensEaten < 1 ) {
+                            setStatusMessage("Runtime error at " + turtleCommands[ currentCommand ]);
+                            return true;
+                        }
+                        currentCommand += tokensEaten;
+                        break;
+                    }
+                }
+            }
+            return false;
+        }
+
 
         function grabTurtle(x,y) {
             if( turtle === null ) {
@@ -644,10 +814,13 @@ a:active {
             let trimmedCommand = command.trim();
             let splits = command.split(" ");
             splits = splits.filter( (ell) => ell.length > 0 );
+
+            let processedCommands = parseCommand( splits, globalTurtleState );
         
-            handled = !applyCommand( splits, globalTurtleState );
+            handled = processedCommands != null;
 
             if( handled ) {
+                applyCommands( splits, globalTurtleState );
                 clearInputBox();
             }
         }
