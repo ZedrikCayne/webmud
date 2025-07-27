@@ -403,10 +403,8 @@ a:active {
 
         function privateMoveTo( x, y, turtleContext ) {
             if( turtleContext.pen ) {
-                console.log("Applying L");
                 applyPathOp( "L", x, y, turtleContext );
             } else {
-                console.log("Applying M");
                 applyPathOp( "M", x, y, turtleContext );
             }
             applyTurtle( turtleContext );
@@ -605,6 +603,12 @@ a:active {
         }
 
 
+        function openNewPath( turtleContext ) {
+            turtleContext.accumulator += pathEnd( turtleContext ) + pathStart( turtleContext );
+            turtleContext.lastpathoperation = "0";
+            applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
+        }
+
         function applyTurtle( turtleContext ) {
             turtleContext.svg = turtleContext.accumulator +
                 pathEnd( turtleContext ) + svgEnd();
@@ -715,7 +719,7 @@ a:active {
                 turtleContext.accumulator += pathEnd(turtleContext);
                 turtleContext.pencolor = turtleCommand[1];
                 turtleContext.accumulator += pathStart(turtleContext);
-                turtleContext.lastpathoperator = "0";
+                turtleContext.lastpathoperation = "0";
                 applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
             }
 
@@ -786,10 +790,11 @@ a:active {
         }
 
         function parsePath( turtleCommand, turtleState ) {
-            return -1;
+            return 1;
         }
         function handlePath( turtleCommand, turtleState ) {
-            return -1;
+            openNewPath( turtleState );
+            return 1;
         }
 
         function parseBackground( turtleCommand, turtleState ) {
@@ -845,8 +850,22 @@ a:active {
             { "command":"cos", "handler":handleCos, "parser":parseCos },
             { "command":"tan", "handler":handleTan, "parser":parseTan },
             { "command":"sqrt", "handler":handleSqrt, "parser":parseSqrt },
-            { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply }
+            { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply },
+            { "command":"width", "handler":handleWidth, "parser":parseWidth }
         ];
+        function parseWidth( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command width <px> needs a parameter");
+            }
+            if( parseNumberOrVariable( turtleCommand[1] ) == NaN ) {
+                setStatusMessage("Command 'width <px>' <px> needs to be a number.");
+            }
+            return 2;
+        }
+        function handleWidth( turtleCommand, turtleContext ) {
+            turtleContext.penwidth = handleNumberOrVariable(turtleCommand[1]);
+            return 2;
+        }
         function parseVerboseApply( turtleCommand, turtleContext ) {
             return 1;
         }
