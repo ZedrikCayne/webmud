@@ -186,6 +186,10 @@ a:active {
         var inputCache = [];
         var currentLineCache = null;
         var currentInputCacheIndex = 0;
+
+        var commandAccumulatorName = null;
+        var commandAccumulator = null;
+        var commandVariables = null;
         
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
@@ -307,7 +311,7 @@ a:active {
             if( typeof aThing == "number" ) return aThing;
             if( isAVariable( aThing ) ) {
                 if( turtleState.variableStack.length > 0 ) {
-                    for( i = turtleState.variableStack.length; i <= 0; --i ) {
+                    for( i = turtleState.variableStack.length - 1; i <= 0; --i ) {
                         if( turtleState.variableStack[i][ aThing ] !== undefined )
                             return turtleState.variableStack[i][aThing];
                     }
@@ -319,25 +323,22 @@ a:active {
             return Number(aThing);
         }
 
-        function pushVariableContext() {
+        function pushVariableContext( turtleState ) {
             turtleState.variableStack.push( {} );
         }
 
-        function popVariableContext() {
+        function popVariableContext( turtleState ) {
             turtleState.variableStack.pop();
         }
 
         function setVariable(aVariable, aValue, turtleState ) {
-            console.log("Wanna set " + aVariable );
             if( !isAVariable( aVariable ) ) {
                 return true;
             }
             if( turtleState.variableStack.length > 0 ) {
-                console.log("Set it in stack");
-                turtleState.variableStack[variableStack.length - 1][ aVariable ] = aValue;
+                turtleState.variableStack[turtleState.variableStack.length - 1][ aVariable ] = handleNumberOrVariable(aValue);
             } else {
-                console.log("Set it in global");
-                turtleState.globalVariables[ aVariable ] = aValue;
+                turtleState.globalVariables[ aVariable ] = handleNumberOrVariable( aValue );
             }
             return false;
         }
@@ -596,7 +597,6 @@ a:active {
             
             let xform = "translate( " + (Number(turtleContext.x) - Number(turtle.whmin/2)) + "px, " + (-1 * (Number(turtleContext.y) + Number(turtle.whmin))) + "px ) rotate( " + Number(turtleContext.rot) + "deg )";
 
-            console.log(xform);
             turtle.style.transform = xform;
         }
 
@@ -715,6 +715,7 @@ a:active {
             turtleCommand[1] = repeats;
             return 2;
         }
+
         function handleRepeat( turtleCommand, turtleState ) {
             var repeats = handleNumberOrVariable( turtleCommand[1], turtleState );
             var repeatMe = turtleCommand.slice(2);
@@ -725,18 +726,43 @@ a:active {
             return turtleCommand.length;
         }
 
-        function parseTo( turtleCommand, turtleState ) {
-            return -1;
+        function cancelAccumulation() {
+            commandAccumulator = null;
+            commandAccumulatorName = null;
+            commandVariables = null;
         }
+
+        function parseTo( turtleCommand, turtleState ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage( "Command is 'to <name> [var1] ...'" );
+                return -1;
+            }
+            commandAccumulator = [];
+            commandAccumulatorName = turtleCommand[1];
+            if( turtleCommand.length > 2 ) {
+                commandVariables = turtleCommand.slice(2);
+            } else {
+                commandVariables = [];
+            }
+            pushVariableContext(turtleState);
+            
+            return turtleCommand.length;
+        }
+
         function handleTo( turtleCommand, turtleState ) {
-            return -1;
+            return turtleCommand.length;
         }
         
         function parseEnd( turtleCommand, turtleState ) {
-            return -1;
+            popVariableContext(turtleState);
+            turtleState.definedCommands[ commandAccumulatorName ] = {};
+            turtleState.definedCommands[ commandAccumulatorName ].vars = commandVariables;
+            turtleState.definedCommands[ commandAccumulatorName ].commands = commandAccumulator;
+            cancelAccumulation();
+            return 1;
         }
         function handleEnd( turtleCommand, turtleState ) {
-            return -1;
+            return 1;
         }
 
         function parsePath( turtleCommand, turtleState ) {
@@ -806,22 +832,22 @@ a:active {
         }
 
         function clearMath( turtleContext ) {
-            console.log( "Clearing math." );
             turtleContext.currentMath = 0.0;
             turtleContext.outputVariable = null;
+        }
+
+        function getDefinedCommand( what, turtleContext ) {
+            return turtleContext.definedCommands[ what ];
         }
 
         function parseCommand( turtleCommand, turtleContext ) {
             var tokensEaten = 0;
             var tokenIter = turtleCommand;
             for( currentCommand = 0; currentCommand < turtleCommand.length; ) {
-                console.log("Ate tokens " + tokensEaten );
                 var tokenIter = tokenIter.slice(tokensEaten);
-                console.log("Parse check " + tokenIter[0] );
                 tokensEaten = 0;
                 for( var i = 0; i < commands.length; ++i ) {
                     if( tokenIter[0] == commands[i].command ) {
-                        console.log("Parse " + tokenIter[0]);
                         tokensEaten = commands[i].parser( tokenIter, turtleContext );
                         if( tokensEaten < 1 ) return null;
                         //rewrite original commands with modified bits.
@@ -830,6 +856,19 @@ a:active {
                         }
                         currentCommand += tokensEaten;
                         break;
+                    }
+                }
+
+                if( tokensEaten == 0 ) {
+                    let definedCommand = getDefinedCommand( tokenIter[0], turtleContext );
+                    if( definedCommand !== undefined ) {
+                        if( (tokenIter.length - 1) < definedCommand.vars.length ) {
+                            setStatusMessage( "Defined command " + tokenIter[0] + " needs " + definedCommand.vars.length + " parameters." );
+                            return null;
+                        }
+                        tokensEaten = definedCommand.vars.length + 1;
+                        currentCommand += tokensEaten;
+                        continue;
                     }
                 }
 
@@ -865,7 +904,6 @@ a:active {
                 tokensEaten = 0;
                 for( var i = 0; i < commands.length; ++i ) {
                     if( turtleIter[0] == commands[i].command ) {
-                        console.log("Applying " + turtleIter[0]);
                         var tokensEaten = commands[i].handler( turtleIter, turtleContext );
                         if( tokensEaten < 1 ) {
                             setStatusMessage("Runtime error at " + turtleCommands[ currentCommand ]);
@@ -873,6 +911,22 @@ a:active {
                         }
                         break;
                     }
+                }
+                let definedCommand = getDefinedCommand( turtleIter[0], turtleContext );
+                if( tokensEaten == 0 && definedCommand !== undefined ) {
+                    pushVariableContext( turtleContext );
+                    for( let i = 0; i < definedCommand.vars.length; ++i ) {
+                        setVariable( definedCommand.vars[i], turtleIter[ 1 + i ], turtleContext );
+                    }
+                    let innerCommands = definedCommand.commands;
+                    for( let i = 0; i < innerCommands.length; ++i ) {
+                        if( applyCommands( innerCommands[i], turtleContext ) ) {
+                            popVariableContext( turtleContext );
+                            return true;
+                        }
+                    }
+                    popVariableContext( turtleContext );
+                    tokensEaten = 1 + definedCommand.vars.length;
                 }
                 if( tokensEaten == 0 && isAVariable( turtleIter[0] ) ) {
                     turtleContext.outputVariable = turtleIter[0];
@@ -915,12 +969,16 @@ a:active {
             splits = splits.filter( (ell) => ell.length > 0 );
 
             let processedCommands = parseCommand( splits, globalTurtleState );
-        
-            handled = processedCommands != null;
 
+            handled = processedCommands != null;
             if( handled ) {
-                applyCommands( splits, globalTurtleState );
-                clearInputBox();
+                if( commandAccumulator == null ) {
+                    applyCommands( splits, globalTurtleState );
+                    clearInputBox();
+                } else {
+                    commandAccumulator.push( processedCommands );
+                    clearInputBox();
+                }
             }
         }
 
@@ -933,7 +991,6 @@ a:active {
         }
         function handleAssign( turtleCommand, turtleState ) {
             turtleState.currentMath = handleNumberOrVariable( turtleCommand[1], turtleState );
-            console.log("Assign: " + turtleCommand[1] + " is " + turtleState.currentMath );
             if( turtleState.currentMath == NaN ) {
                 return -1;
             }
