@@ -303,6 +303,14 @@ a:active {
             "variableStack":[]
         };
 
+        try {
+            globalDefinedCommands = JSON.parse(localStorage.getItem("savedCommands"));
+        } catch (e) {
+            globalDefinedCommands = {};
+        }
+
+        if( !globalDefinedCommands ) globalDefinedCommands = {};
+
         function isAVariable( aString ) {
             if( aString === undefined ) return false;
             if( typeof aString != "string" ) return false;
@@ -380,7 +388,7 @@ a:active {
         }
 
         function xyFromContext(x,y,turtleContext) {
-            return {"x":Number(x),"y":Number(turtleContext.height)-Number(y)};
+            return {"x":Math.floor(Number(x)),"y":Math.floor(Number(turtleContext.height)-Number(y))};
         }
 
         function applyPathOp( op, x, y, turtleContext ) {
@@ -783,6 +791,7 @@ a:active {
             turtleState.definedCommands[ commandAccumulatorName ].vars = commandVariables;
             turtleState.definedCommands[ commandAccumulatorName ].commands = commandAccumulator;
             cancelAccumulation();
+            localStorage.setItem("savedCommands", JSON.stringify(globalDefinedCommands) );
             return 1;
         }
         function handleEnd( turtleCommand, turtleState ) {
