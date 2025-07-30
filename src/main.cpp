@@ -154,6 +154,7 @@ void hupOnMainThread() {
 }
 
 struct CS_Route serverRoutes[] = {
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/logo.html", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/terms_of_service.html", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/privacy_policy.html", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT, 0, "/googlelogin", googleLogin},

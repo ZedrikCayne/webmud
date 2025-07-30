@@ -353,9 +353,9 @@ a:active {
                 return true;
             }
             if( turtleState.variableStack.length > 0 ) {
-                turtleState.variableStack[turtleState.variableStack.length - 1][ aVariable ] = handleNumberOrVariable(aValue);
+                turtleState.variableStack[turtleState.variableStack.length - 1][ aVariable ] = handleNumberOrVariable(aValue, turtleState);
             } else {
-                turtleState.globalVariables[ aVariable ] = handleNumberOrVariable( aValue );
+                turtleState.globalVariables[ aVariable ] = handleNumberOrVariable( aValue, turtleState );
             }
             return false;
         }
@@ -861,8 +861,24 @@ a:active {
             { "command":"sqrt", "handler":handleSqrt, "parser":parseSqrt },
             { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply },
             { "command":"width", "handler":handleWidth, "parser":parseWidth },
-            { "command":"save", "handler":handleSave, "parser":parseSave }
+            { "command":"save", "handler":handleSave, "parser":parseSave },
+            { "command":"help", "handler":handleHelp, "parser":parseHelp },
+            { "command":"rand", "handler":handleRand, "parser":parseRand }
         ];
+
+        function parseHelp( turtleCommand, turtleContext ) {
+            return 1;
+        }
+        function handleHelp( turtleCommand, turtleContext ) {
+            return 1;
+        }
+        function parseRand( turtleCommand, turtleContext ) {
+            return 1;
+        }
+        function handleRand( turtleCommand, turtleContext ) {
+            turtleContext.currentMath = Math.Random();
+            return 1;
+        }
 
         function parseSave( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
@@ -895,7 +911,7 @@ a:active {
             return 2;
         }
         function handleWidth( turtleCommand, turtleContext ) {
-            turtleContext.penwidth = handleNumberOrVariable(turtleCommand[1]);
+            turtleContext.penwidth = handleNumberOrVariable(turtleCommand[1], turtleContext);
             return 2;
         }
         function parseVerboseApply( turtleCommand, turtleContext ) {
@@ -1105,15 +1121,21 @@ a:active {
 
         function parseAssign( turtleCommand, turtleState ) {
             if( parseNumberOrVariable( turtleCommand[1] ) == NaN ) {
-                setStatusMessage( "= needs to be followed by a variable or number" );
-                return -1;
+                if( getCommand( turtleCommand[1] ) == null ) {
+                    setStatusMessage( "= needs to be followed by a variable or number" );
+                    return -1;
+                }
+                return 1;
             }
             return 2;
         }
         function handleAssign( turtleCommand, turtleState ) {
             turtleState.currentMath = handleNumberOrVariable( turtleCommand[1], turtleState );
             if( turtleState.currentMath == NaN ) {
-                return -1;
+                if( getCommand( turtleCommand[1] ) == null ) {
+                    return -1;
+                }
+                return 1;
             }
             return 2;
         }
