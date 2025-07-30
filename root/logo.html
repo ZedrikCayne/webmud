@@ -860,14 +860,37 @@ a:active {
             { "command":"tan", "handler":handleTan, "parser":parseTan },
             { "command":"sqrt", "handler":handleSqrt, "parser":parseSqrt },
             { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply },
-            { "command":"width", "handler":handleWidth, "parser":parseWidth }
+            { "command":"width", "handler":handleWidth, "parser":parseWidth },
+            { "command":"save", "handler":handleSave, "parser":parseSave }
         ];
+
+        function parseSave( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command 'save <filename>' needs a file name.");
+                return -1;
+            }
+            return 2;
+        }
+        function handleSave( turtleCommand, turtleContext ) {
+            let b = new Blob([turtleContext.svg], {type:"image/svg+xml"});
+            let url = URL.createObjectURL(b);
+            let a = document.createElement("a");
+            let filename = turtleCommand[1];
+            if( !filename.endsWith(".svg") ) filename = filename + ".svg"
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
         function parseWidth( turtleCommand, turtleContext ) {
             if( turtleCommand.length < 2 ) {
                 setStatusMessage("Command width <px> needs a parameter");
+                return -1;
             }
             if( parseNumberOrVariable( turtleCommand[1] ) == NaN ) {
                 setStatusMessage("Command 'width <px>' <px> needs to be a number.");
+                return -1;
             }
             return 2;
         }
