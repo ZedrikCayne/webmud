@@ -183,6 +183,7 @@ a:active {
     <script>
         inputBox.innerText = "";
 
+        var undoStack = [];
         var inputCache = [];
         var currentLineCache = null;
         var currentInputCacheIndex = 0;
@@ -254,7 +255,21 @@ a:active {
             }
         });
 
+        var clearStatusTimeout = undefined;
+        function clearStatus() {
+            if( clearStatusTimeout ) {
+                clearTimeout( clearStatusTimeout );
+            }
+
+            clearStatusTimeout = undefined;
+            lebar.innerText = "Welcome to logo. Enter 'help' for help.";
+        }
         function setStatusMessage( text ) {
+            if( clearStatusTimeout ) {
+                clearTimeout( clearStatusTimeout );
+            }
+            setTimeout( clearStatus, 5000 );
+            
             lebar.innerText = text;
         }
 
@@ -281,6 +296,7 @@ a:active {
                     break;
                 }
             }
+            pushForUndo();
         }
 
         function clearInputBox() {
@@ -325,18 +341,27 @@ a:active {
         }
 
         function handleNumberOrVariable( aThing, turtleState ) {
-            if( typeof aThing == "number" ) return aThing;
+            if( typeof aThing == "number" ) {
+                if( verboseApply )  console.log( "handleNumberOrVariable( " + aThing + " )" );
+                return aThing;
+            }
             if( isAVariable( aThing ) ) {
                 if( turtleState.variableStack.length > 0 ) {
+                    if( verboseApply )  console.log( "handleNumberOrVariable looking in the stack depth " + turtleState.variableStack.length );
                     for( i = turtleState.variableStack.length - 1; i >= 0; --i ) {
-                        if( turtleState.variableStack[i][ aThing ] !== undefined )
+                        if( verboseApply )  console.log( "handleNumberOrVariable checking " + i );
+                        if( turtleState.variableStack[i][ aThing ] !== undefined ) {
+                            if( verboseApply )  console.log( "handleNumberOrVariable found " +  turtleState.variableStack[i][aThing] );
                             return turtleState.variableStack[i][aThing];
+                        }
                     }
                 }
                 if( turtleState.globalVariables[ aThing ] !== undefined ) {
+                    if( verboseApply )  console.log( "handleNumberOrVariable found global " + turtleState.globalVariables[aThing]  );
                     return turtleState.globalVariables[ aThing ];
                 }
             }
+            if( verboseApply )  console.log( "handleNumberOrVariable trying to make a number " + aThing  );
             return Number(aThing);
         }
 
@@ -363,7 +388,24 @@ a:active {
         var globalTurtleState = null;
         clearOutput();
 
+        function clearUndo() {
+            undoStack = [];
+        }
+
+        function pushForUndo() {
+            console.log("Push");
+            undoStack.push( structuredClone( globalTurtleState ) );
+        }
+
+        function popUndo() {
+            console.log("Pop");
+            setStatusMessage("Undo");
+            undoStack.pop();
+            globalTurtleState = undoStack.pop();
+        }
+
         function clearOutput() {
+            clearUndo();
             globalSvgEditable = null;
             outputDiv.innerHTML = "";
             globalTurtleState = structuredClone( rootTurtleState );
@@ -814,10 +856,12 @@ a:active {
         }
 
         function parseUndo( turtleCommand, turtleState ) {
-            return -1;
+            return 1;
         }
         function handleUndo( turtleCommand, turtleState ) {
-            return -1;
+            popUndo();
+            applyTurtle( globalTurtleState, true );
+            return 1;
         }
 
         function getCommand( forThis ) {
@@ -876,7 +920,7 @@ a:active {
             return 1;
         }
         function handleRand( turtleCommand, turtleContext ) {
-            turtleContext.currentMath = Math.Random();
+            turtleContext.currentMath = Math.random();
             return 1;
         }
 
