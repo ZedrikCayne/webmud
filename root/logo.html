@@ -481,7 +481,7 @@ a:active {
         }
 
         function handleMoveTo( turtleCommand, turtleContext ) {
-            privateMoveTo( handleNumberOrVariable(turtleCommand[1], turtleContext), handleNumberOrVariable(turtleCommand[2]), turtleContext );
+            privateMoveTo( handleNumberOrVariable(turtleCommand[1], turtleContext), handleNumberOrVariable(turtleCommand[2], turtleContext), turtleContext );
             return 3;
         }
 
@@ -791,10 +791,9 @@ a:active {
         }
 
         function handleRepeat( turtleCommand, turtleState ) {
-            var repeats = handleNumberOrVariable( turtleCommand[1], turtleState );
-            var repeatMe = turtleCommand.slice(2);
-            for( var i = 0; i < repeats; ++i ) {
-                var repeatMe = turtleCommand.slice(2);
+            let repeats = handleNumberOrVariable( turtleCommand[1], turtleState );
+            for( let rep = 0; rep < repeats; ++rep ) {
+                let repeatMe = turtleCommand.slice(2);
                 applyCommands( repeatMe, turtleState );
             }
             return turtleCommand.length;
@@ -907,7 +906,8 @@ a:active {
             { "command":"width", "handler":handleWidth, "parser":parseWidth },
             { "command":"save", "handler":handleSave, "parser":parseSave },
             { "command":"help", "handler":handleHelp, "parser":parseHelp },
-            { "command":"rand", "handler":handleRand, "parser":parseRand }
+            { "command":"rand", "handler":handleRand, "parser":parseRand },
+            { "command":"export", "handler":handleExport, "parser":parseExport }
         ];
 
         function parseHelp( turtleCommand, turtleContext ) {
@@ -922,6 +922,44 @@ a:active {
         function handleRand( turtleCommand, turtleContext ) {
             turtleContext.currentMath = Math.random();
             return 1;
+        }
+
+        function parseExport( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 2 ) {
+                setStatusMessage("Command 'export <filename>' needs a file name.");
+                return -1;
+            }
+            return 2;
+        }
+        function handleExport( turtleCommand, turtleContext ) {
+            let output = "";
+            let eachCommand = Object.values(turtleContext.definedCommands);
+            let theLen = eachCommand.length;
+            for( let i = 0; i < theLen; ++i ) {
+                let theCommands = eachCommand[i].commands;
+                let numCommands = theCommands.length;
+                for( let j = 0; j < numCommands; ++j ) {
+                    let tokens = theCommands[j];
+                    let numTokens = tokens.length;
+                    for( let k = 0; k < numTokens; ++k ) {
+                        output += tokens[k];
+                        if( k < numTokens - 1 ) output += " ";
+                    }
+                    output += "\r\n";
+                }
+                output += "end\r\n";
+            }
+            let b = new Blob([output], {type:"text/plain"});
+            let url = URL.createObjectURL(b);
+            let a = document.createElement("a");
+            let filename = turtleCommand[1];
+            if( !filename.endsWith(".logo") ) filename = filename + ".logo"
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return 2;
         }
 
         function parseSave( turtleCommand, turtleContext ) {
@@ -1051,6 +1089,9 @@ a:active {
             var tokensEaten = 0;
             var turtleIter = turtleCommands;
             for( currentCommand = 0; currentCommand < turtleCommands.length; ) {
+                setVariable(":X", turtleContext.x, turtleContext );
+                setVariable(":Y", turtleContext.y, turtleContext );
+                setVariable(":ROT", turtleContext.rot, turtleContext );
                 turtleIter = turtleIter.slice( tokensEaten );
                 tokensEaten = 0;
                 let commandToRun = getCommand( turtleIter[0] );
