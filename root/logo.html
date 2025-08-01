@@ -156,17 +156,32 @@ a:visited {
 a:active {
     color: #FFFFFF;
 }
+.help {
+    font-family: 'Arial', sans-serif;
+    font-size: 16;
+    margin: 20;
+    position: absolute;
+    display: block;
+    color: #F0F0F0;
+}
+td {
+}
+.hidden {
+    display: none;
+}
 
 </style>
 </head>
 <body id="wholeBody">
     <noscript>You're going to need javascript for any of this to work.</noscript>
+    <div id="thehelp" class="hidden top-screen-part help scroll">
+    </div>
     <div id="outputDiv" class="top-screen-part" style="margin:auto;align-content:center">
     </div>
     <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
     <div style="position: relative" class="bottom-screen-part">
         <div id="lebar" class="statusbar lowerpadded">
-            DISCONNECTED
+            Welcome to logo. Type 'help' to get the help.
         </div>
         <div style="z-index: 50" class="scroll">
             <div contenteditable="true" class="input-area lowerpadded" id="inputBox" type="text" autofocus></div>
@@ -318,6 +333,8 @@ a:active {
             "outputVariable":null,
             "variableStack":[]
         };
+
+
 
         try {
             globalDefinedCommands = JSON.parse(localStorage.getItem("savedCommands"));
@@ -847,12 +864,6 @@ a:active {
             return 1;
         }
 
-        function parseBackground( turtleCommand, turtleState ) {
-            return -1;
-        }
-        function handleBackground( turtleCommand, turtleState ) {
-            return -1;
-        }
 
         function parseUndo( turtleCommand, turtleState ) {
             return 1;
@@ -873,47 +884,77 @@ a:active {
         }
 
         var commands = [
-            { "command":"moveto", "handler":handleMoveTo, "parser":parseMoveTo },
-            { "command":"pen", "handler":handlePen, "parser":parsePen },
-            { "command":"forward", "handler":handleForward, "parser":parseForward },
-            { "command":"turn", "handler":handleTurn, "parser":parseTurn },
-            { "command":"turnto", "handler":handleTurnto, "parser":parseTurnto },
-            { "command":"clear", "handler":handleClear, "parser":parseClear },
-            { "command":"new", "handler":handleNew, "parser":parseNew },
-            { "command":"fill", "handler":handleFill, "parser": parseFill },
-            { "command":"color", "handler":handleColor, "parser": parseColor },
-            { "command":"repeat", "handler":handleRepeat, "parser": parseRepeat },
-            { "command":"to", "handler":handleTo, "parser":parseTo },
-            { "command":"path", "handler":handlePath, "parser":parsePath },
-            { "command":"end", "handler":handleEnd, "parser":parseEnd },
-            { "command":"background", "handler":handleBackground, "parser":parseBackground },
-            { "command":"undo", "handler":handleUndo, "parser":parseUndo },
-            { "command":"right", "handler":handleRight, "parser":parseRight },
-            { "command":"left", "handler":handleLeft, "parser":parseLeft },
-            { "command":"back", "handler":handleBack, "parser":parseBack },
-            { "command":"hide", "handler":handleHide, "parser":parseHide },
-            { "command":"show", "handler":handleShow, "parser":parseShow },
-            { "command":"+", "handler":handleAddition, "parser":parseAddition },
-            { "command":"-", "handler":handleSubtraction, "parser":parseSubtraction },
-            { "command":"*", "handler":handleMultiply, "parser":parseMultiply },
-            { "command":"/", "handler":handleDivide, "parser":parseDivide },
-            { "command":"=", "handler":handleAssign, "parser":parseAssign },
-            { "command":"sin", "handler":handleSin, "parser":parseSin },
-            { "command":"cos", "handler":handleCos, "parser":parseCos },
-            { "command":"tan", "handler":handleTan, "parser":parseTan },
-            { "command":"sqrt", "handler":handleSqrt, "parser":parseSqrt },
-            { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply },
-            { "command":"width", "handler":handleWidth, "parser":parseWidth },
-            { "command":"save", "handler":handleSave, "parser":parseSave },
-            { "command":"help", "handler":handleHelp, "parser":parseHelp },
-            { "command":"rand", "handler":handleRand, "parser":parseRand },
-            { "command":"export", "handler":handleExport, "parser":parseExport }
+            { "command":"moveto", "handler":handleMoveTo, "parser":parseMoveTo, "helpcommand":"moveto <x> <y>", "helpdesc":"Move the turtle to pixels x,y. 0,0 is the bottom left" },
+            { "command":"pen", "handler":handlePen, "parser":parsePen, "helpcommand":"pen [up|down]", "helpdesc":"Take the pen off the paper, or put it down on the paper. Starts and stops drawing." },
+            { "command":"forward", "handler":handleForward, "parser":parseForward, "helpcommand":"forward <length>", "helpdesc":"Move the turtle forward <length> pixels." },
+            { "command":"turn", "handler":handleTurn, "parser":parseTurn, "helpcommand":"turn <degrees>", "helpdesc":"Turn the turtle clockwise <degrees> degrees." },
+            { "command":"turnto", "handler":handleTurnto, "parser":parseTurnto, "helpcommand":"turnto <degrees>", "helpdesc":"Turn the turtle to an absolute number of degrees, where 0 points straight up." },
+            { "command":"clear", "handler":handleClear, "parser":parseClear, "helpcommand":"clear", "helpdesc":"Clears the screen." },
+            { "command":"new", "handler":handleNew, "parser":parseNew, "helpcommand":"new <width> <height>", "helpdesc":"Creates a new area to draw in widthxheight pixels." },
+            { "command":"fill", "handler":handleFill, "parser": parseFill, "helpcommand":"fill <color>", "helpdesc":"Sets the fill color. Specified in web colors by name or using the various # values." },
+            { "command":"color", "handler":handleColor, "parser": parseColor, "helpcommand":"color <color>", "helpdesc":"Change the 'stroke' or line color of the turtle. Will start a new path." },
+            { "command":"repeat", "handler":handleRepeat, "parser": parseRepeat, "helpcommand":"repeate <num>", "helpdesc":"Repeats whatever is on the rest of the line <num> times. To make a square for example, you would 'repeat 4 forward 20 right 90'" },
+            { "command":"to", "handler":handleTo, "parser":parseTo, "helpcommand":"to <name> <:var1> <:var2>", "helpdesc":"Create a new command called <name>. All commands entered until 'end' will be part of the new command. Variables are defined as :varname and will be pulled off the commands in order. For example 'to square :width :height' will define a command called square that will take two parameters" },
+            { "command":"end", "handler":handleEnd, "parser":parseEnd, "helpcommand":"end", "helpdesc":"Used to end a command you started specifying with 'to'" },
+            { "command":"path", "handler":handlePath, "parser":parsePath, "helpcommand":"path", "helpdesc":"Creates a new path. Internally this creates a 'svg' with paths. So if you need separate filled sections, you are going to want to create multiple paths." },
+            { "command":"undo", "handler":handleUndo, "parser":parseUndo, "helpcommand":"undo", "helpdesc":"Undoes your last command." },
+            { "command":"right", "handler":handleRight, "parser":parseRight, "helpcommand":"right <degrees>", "helpdesc":"Turns your turtle clockwise <degrees> degrees." },
+            { "command":"left", "handler":handleLeft, "parser":parseLeft, "helpcommand":"left <degrees>", "helpdesc":"Turns your turtle counter-clockwise <degrees> degrees." },
+            { "command":"back", "handler":handleBack, "parser":parseBack, "helpcommand":"back <length>", "helpdesc":"Moves your turtle backwards <length> pixels." },
+            { "command":"hide", "handler":handleHide, "parser":parseHide, "helpcommand":"hide", "helpdesc":"Hides your turtle" },
+            { "command":"show", "handler":handleShow, "parser":parseShow, "helpcommand":"show", "helpdesc":"Shows your turtle" },
+            { "command":"+", "handler":handleAddition, "parser":parseAddition, "helpcommand":"+ <numberorvariable>", "helpdesc":"Math in this version of logo is weird. You can only assign calculated bits to variables, not use them directly. (ie: You cannot forward 5 + 6, but you can ':moveto = 5 + 6' then 'forward :moveto'" },
+            { "command":"-", "handler":handleSubtraction, "parser":parseSubtraction, "helpcommand":"- <numberorvariable>", "helpdesc":"Subtraction." },
+            { "command":"*", "handler":handleMultiply, "parser":parseMultiply, "helpcaommand":"* <numberorvariable>", "helpdesc":"Multiplication." },
+            { "command":"/", "handler":handleDivide, "parser":parseDivide, "helpcommand":"/ <numberorvariable>", "helpdesc":"Division" },
+            { "command":"=", "handler":handleAssign, "parser":parseAssign, "helpcommand":"= <numberorvariable>", "helpdesc":"Assignment" },
+            { "command":"sin", "handler":handleSin, "parser":parseSin, "helpcommand":"sin", "helpdesc":"Put the sin value of the math done previous to it in the result. So ':sinangle = :angle / 360 * :PI sin' will take an angle in degrees, convert it to radians, and then take the sin value." },
+            { "command":"cos", "handler":handleCos, "parser":parseCos, "helpcommand":"cos", "helpdesc":"Put the sin value of the math done previous to it in the result. So ':cosangle = :angle / 360 * :PI cos' will take an angle in degrees, convert it to radians, and then take the cos value." },
+            { "command":"tan", "handler":handleTan, "parser":parseTan, "helpcommand":"cos", "helpdesc":"As per sin and cos, will put the tan of the accumulated math into the result." },
+            { "command":"sqrt", "handler":handleSqrt, "parser":parseSqrt, "helpcommand":"sqrt", "helpdesc":"Takes the square root of the accumulated math so far." },
+            { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply, "helpcommand":"verboseapply", "helpdesc":"Turns on verbose logging of commands running in the console log of the browser."},
+            { "command":"width", "handler":handleWidth, "parser":parseWidth, "helpcommand":"width <pixels>", "helpdesc":"Makes the stroke width of the line wider." },
+            { "command":"save", "handler":handleSave, "parser":parseSave, "helpcommand":"save <filename>", "helpdesc":"Will download your art to the filename you provided." },
+            { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" },
+            { "command":"rand", "handler":handleRand, "parser":parseRand, "helpcommand":"rand", "helpdesc":"Overwites the current math value with a random number." },
+            { "command":"export", "handler":handleExport, "parser":parseExport, "helpcommand":"export <filename>", "helpdesc":"Exports your custom commands to the filename you specify for download." }
         ];
+
+        function fillHelp() {
+            thehelp.innerHTML = "";
+            let table = document.createElement("table");
+            thehelp.appendChild(table);
+            let tableRow = document.createElement("tr");
+            table.appendChild(tableRow);
+            let tableH = document.createElement("th");
+            tableH.textContent = "Command";
+            tableRow.appendChild(tableH);
+            tableH = document.createElement("th");
+            tableH.innerHTML = "<nbsp/>|<nbsp/>";
+            tableRow.appendChild(tableH);
+            tableH = document.createElement("th");
+            tableH.textContent = "";
+            tableRow.appendChild(tableH);
+            for( let i = 0; i < commands.length; ++i ) {
+                tableRow = document.createElement("tr");
+                table.appendChild( tableRow );
+                let tableD = document.createElement("td");
+                tableD.textContent = commands[i].helpcommand;
+                tableRow.appendChild(tableD);
+                tableD = document.createElement("td");
+                tableD.innerHTML = "<nbsp/>|<nbsp/>";
+                tableRow.appendChild(tableD);
+                tableD = document.createElement("td");
+                tableD.textContent = commands[i].helpdesc;
+                tableRow.appendChild(tableD);
+            }
+        }
 
         function parseHelp( turtleCommand, turtleContext ) {
             return 1;
         }
         function handleHelp( turtleCommand, turtleContext ) {
+            thehelp.classList.toggle("hidden");
             return 1;
         }
         function parseRand( turtleCommand, turtleContext ) {
@@ -1291,6 +1332,7 @@ a:active {
         }
 
         window.onload = function () {
+            fillHelp();
             deleteLineFromAria();
         }
     </script>
