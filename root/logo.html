@@ -782,13 +782,8 @@ td {
             return 2;
         }
         function handleColor( turtleCommand, turtleContext ) {
-            if( turtleContext.pencolor != turtleCommand[1] ) {
-                turtleContext.accumulator += pathEnd(turtleContext);
-                turtleContext.pencolor = turtleCommand[1];
-                turtleContext.accumulator += pathStart(turtleContext);
-                turtleContext.lastpathoperation = "0";
-                applyPathOp( "M", turtleContext.x, turtleContext.y, turtleContext );
-            }
+            turtleContext.pencolor = turtleCommand[1];
+            applyTurtle( turtleContext );
 
             return 2;
         }
