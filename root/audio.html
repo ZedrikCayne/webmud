@@ -1,0 +1,577 @@
+<html>
+<head>
+    <title>audio</title>
+    <meta charset="utf-8"></meta>
+    <meta name="HandheldFriendly" content="true"></meta>
+    <meta name="MobileOptimized" content="320"></meta>
+    <meta name="viewport" content="initial-scale=1.0, width=device-width, user-scalable=no"></meta>
+    <style>
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+/* Reset Ends */
+
+html {
+    align: center;
+    align-content: center;
+    background-color: #606060;
+}
+body,body#wholeBody,code,textarea {
+    margin: 0px auto;
+    padding: 0px;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Courier New', monospace;
+    max-width:1024px;
+    line-height:1.3;
+    font-size:18px;
+    color:#E0E0E0;
+    width: 100%;
+    background-color:#000000;
+    color: #E0E0E0;
+    overflow: hidden;
+    scrollbar-color: #404040 #808080;
+    scrollbar-width: thin;
+}
+body {
+    min-height: 100dvh;
+    max-height: 100dvh;
+}
+.scroll {
+    overflow-y: scroll;
+}
+/*Where the scroll happens*/
+.top-screen-part {
+    min-height: 80dvh;
+    max-height: 80dvh;
+}
+/*Input area*/
+.bottom-screen-part {
+    min-height: 20dvh;
+    max-height: 20dvh;
+    display: flex;
+    justify-content: flex-start;
+    flex-direction: column;
+}
+.output-area {
+    margin: auto;
+    width: 95%;
+    max-width: 95%;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.input-area, .input-area:focus {
+    width: calc(90% - 2em);
+    min-width: calc(90% - 2em);
+    height: 95%;
+    min-height: 95%;
+    outline: none; 
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.lowerpadded {
+    padding-left: 2.5%;
+    padding-right: 2.5%;
+}
+.input-area > div {
+    float: left;
+}
+.statusbar {
+    height: 1.5em;
+    width: 95%;
+    background-color: #707070;
+    color: #000000;
+    display: block;
+    font-weight: bold;
+}
+
+.topright {
+    position: absolute;
+    top: 1.5em;
+    right: 1em;
+    width: 50px;
+    height: 50px;
+}
+
+.bottomright {
+    position: absolute;
+    bottom: 0px;
+    right: 1em;
+    width: 50px;
+    height: 50px;
+}
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
+.help {
+    font-family: 'Arial', sans-serif;
+    font-size: 16;
+    margin: 20;
+    position: absolute;
+    display: block;
+    color: #F0F0F0;
+}
+td {
+}
+.hidden {
+    display: none;
+}
+
+</style>
+</head>
+<body id="wholeBody">
+    <noscript>You're going to need javascript for any of this to work.</noscript>
+    <div id="thehelp" class="hidden top-screen-part help scroll">
+    </div>
+    <div id="outputDiv" class="top-screen-part" style="margin:auto;align-content:center">
+    </div>
+    <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
+    <div style="position: relative" class="bottom-screen-part">
+        <div id="lebar" class="statusbar lowerpadded">
+            Welcome to audio. Type 'help' to get the help.
+        </div>
+        <div style="z-index: 50" class="scroll">
+            <div contenteditable="true" class="input-area lowerpadded" id="inputBox" type="text" autofocus></div>
+        </div>
+        <div id="upbutton" class="topright" onclick="inputCacheUp()">
+        <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+   <path d="M5 45 L25 5 L45 45 L5 45" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
+</svg></div>
+        <div id="downbutton" class="bottomright" onclick="inputCacheDown()">
+        <svg width="50" height="50" xmlns="http://www.w3.org/2000/svg">
+  <path d="M5 5 L25 45 L45 5 L5 5" style="fill:#E0E0E0;stroke:#000000;stroke-width:5" stroke-linecap="round" />
+</svg> </div>
+    </div>
+    <script>
+        inputBox.innerText = "";
+
+        var undoStack = [];
+        var inputCache = [];
+        var currentLineCache = null;
+        var currentInputCacheIndex = 0;
+
+        var commandAccumulatorName = null;
+        var commandAccumulator = null;
+        var commandVariables = null;
+        
+        function inputCacheUp() {
+            if( inputCache.length < 1 ) return;
+            if( currentInputCacheIndex == 0 ) {
+                currentInputCacheIndex = 1;
+                currentLineCache = inputBox.innerText;
+            } else {
+                currentInputCacheIndex++;
+            }
+            while( currentInputCacheIndex > inputCache.length ) {
+                --currentInputCacheIndex;
+            }
+            inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+        }
+
+        function inputCacheDown() {
+            if( currentInputCacheIndex > 0 ) {
+                --currentInputCacheIndex;
+            }
+            if( currentInputCacheIndex == 0 ) {
+                if( currentLineCache !== null && currentLineCache !== undefined ) {
+                    inputBox.innerText = currentLineCache;
+                }
+            } else {
+                if( inputCache.length > 0 ) {
+                    inputBox.innerText = inputCache[ inputCache.length - currentInputCacheIndex ];
+                }
+            }
+        }
+
+        function inputCacheReset() {
+            currentInputCacheIndex = 0;
+            currentLineCache = null;
+        }
+
+        function inputCachePush(atext) {
+            inputCache.push(atext);
+            if( inputCache.length > 100 )
+                inputCache.shift();
+        }
+
+        //On any keypress...focus the input box
+        wholeBody.addEventListener( "keydown", function (event) {
+	    switch( event.key ) {
+            case "ArrowUp":
+                //back one
+                inputCacheUp();
+                break;
+            case "ArrowDown":
+                inputCacheDown();
+                break;
+            default:
+                inputBox.focus();
+                break;
+            }
+        } );
+
+        inputBox.addEventListener( "touchstart", function (event) {
+            inputBox.focus();
+        } );
+
+        inputBox.addEventListener( "keypress", function (event) {
+            if( event.key == "Enter" ) {
+                event.preventDefault();
+                sendInputBox();
+            } else {
+                inputCacheReset();
+            }
+        });
+
+        var clearStatusTimeout = undefined;
+        function clearStatus() {
+            if( clearStatusTimeout ) {
+                clearTimeout( clearStatusTimeout );
+            }
+
+            clearStatusTimeout = undefined;
+            lebar.innerText = "Welcome to audio. Enter 'help' for help.";
+        }
+        function setStatusMessage( text ) {
+            if( clearStatusTimeout ) {
+                clearTimeout( clearStatusTimeout );
+            }
+            setTimeout( clearStatus, 5000 );
+            
+            lebar.innerText = text;
+        }
+
+        let scrollbackTimeout = 5000;
+
+        function deleteLineFromAria() {
+            try {
+                if( screenReaderElement.firstChild )
+                    screenReaderElement.removeChild( screenReaderElement.firstChild );
+            }catch(e) {};
+            setTimeout( deleteLineFromAria, scrollbackTimeout );
+        }
+
+        function sendInputBox() {
+            let handled = false;
+            let newElement = document.createElement("div");
+            newElement.textContent = inputBox.innerText;
+            inputCachePush( inputBox.innerText );
+            screenReaderElement.appendChild( newElement );
+            let allInputText = inputBox.innerText;
+            let splitText = allInputText.split("\n");
+            let len = splitText.length;
+            for( let i = 0; i < len; ++i ) {
+                if( !processCommand( splitText[i] ) ) {
+                    break;
+                }
+            }
+            pushForUndo();
+        }
+
+        function clearInputBox() {
+            inputBox.innerText = "";
+        }
+
+        var verboseApply = false;
+        var rootParseState = {
+            "definedCommands":{},
+            "globalVariables":{":PI":3.141592654,":E":2.718281828459},
+            "currentMath":0.0,
+            "outputVariable":null,
+            "variableStack":[]
+        };
+
+        var globalParseState = structuredClone(rootParseState);
+
+        function xyFromContext(x,y,turtleContext) {
+            return {"x":Math.floor(Number(x)),"y":Math.floor(Number(turtleContext.height)-Number(y))};
+        }
+
+        function applyPathOp( op, x, y, turtleContext ) {
+            lastOp = turtleContext.lastpathoperation;
+            turtleContext.lastpathoperation = op;
+            if( op != "M" ) {
+                if( lastOp == "M" ) {
+                    position = xyFromContext(turtleContext.x, turtleContext.y,turtleContext);
+                    turtleContext.accumulator += "M" +
+                        position.x + " " + position.y;
+                }
+                position = xyFromContext(x,y,turtleContext);
+                turtleContext.accumulator += (lastOp!=op?op:" ") +
+                    position.x + " " + position.y;
+            }
+            turtleContext.x = x;
+            turtleContext.y = y;
+            return true;
+        }
+
+        function privateMoveTo( x, y, turtleContext ) {
+            if( turtleContext.pen ) {
+                applyPathOp( "L", x, y, turtleContext );
+            } else {
+                applyPathOp( "M", x, y, turtleContext );
+            }
+            applyTurtle( turtleContext );
+        }
+
+        function getCommand( forThis ) {
+            for( var i = 0; i < commands.length; ++i ) {
+                if( forThis == commands[i].command ) {
+                    return commands[i];
+                }
+            }
+            return null;
+        }
+
+        var commands = [
+            { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply, "helpcommand":"verboseapply", "helpdesc":"Turns on verbose logging of commands running in the console log of the browser."},
+            { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" }
+        ];
+
+        function fillHelp() {
+            thehelp.innerHTML = "";
+            let table = document.createElement("table");
+            thehelp.appendChild(table);
+            let tableRow = document.createElement("tr");
+            table.appendChild(tableRow);
+            let tableH = document.createElement("th");
+            tableH.textContent = "Command";
+            tableRow.appendChild(tableH);
+            tableH = document.createElement("th");
+            tableH.innerHTML = "<nbsp/>|<nbsp/>";
+            tableRow.appendChild(tableH);
+            tableH = document.createElement("th");
+            tableH.textContent = "";
+            tableRow.appendChild(tableH);
+            for( let i = 0; i < commands.length; ++i ) {
+                tableRow = document.createElement("tr");
+                table.appendChild( tableRow );
+                let tableD = document.createElement("td");
+                tableD.textContent = commands[i].helpcommand;
+                tableRow.appendChild(tableD);
+                tableD = document.createElement("td");
+                tableD.innerHTML = "<nbsp/>|<nbsp/>";
+                tableRow.appendChild(tableD);
+                tableD = document.createElement("td");
+                tableD.textContent = commands[i].helpdesc;
+                tableRow.appendChild(tableD);
+            }
+        }
+
+        function parseHelp( turtleCommand, turtleContext ) {
+            return 1;
+        }
+        function handleHelp( turtleCommand, turtleContext ) {
+            thehelp.classList.toggle("hidden");
+            return 1;
+        }
+
+        function handleSave( turtleCommand, turtleContext ) {
+            let b = new Blob(["THING"], {type:"text/plain"});
+            let url = URL.createObjectURL(b);
+            let a = document.createElement("a");
+            let filename = turtleCommand[1];
+            if( !filename.endsWith(".svg") ) filename = filename + ".svg"
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        function parseVerboseApply( turtleCommand, turtleContext ) {
+            return 1;
+        }
+        function handleVerboseApply( turtleCommadn, turtleContext ) {
+            verboseApply = !verboseApply;
+            return 1;
+        }
+
+        function getDefinedCommand( what, turtleContext ) {
+            return turtleContext.definedCommands[ what ];
+        }
+
+        function parseCommand( turtleCommand, turtleContext ) {
+            var tokensEaten = 0;
+            var tokenIter = turtleCommand;
+            for( currentCommand = 0; currentCommand < turtleCommand.length; ) {
+                var tokenIter = tokenIter.slice(tokensEaten);
+                tokensEaten = 0;
+                var commandToRun = getCommand( tokenIter[0] );
+                if( commandToRun !== null ) {
+                    tokensEaten = commandToRun.parser( tokenIter, turtleContext );
+                    if( tokensEaten < 1 ) return null;
+                    //rewrite original commands with modified bits.
+                    for( var j = 0; j < tokensEaten; ++j ) {
+                        turtleCommand[ currentCommand + j ] = tokenIter[ j ];
+                    }
+                    currentCommand += tokensEaten;
+                    break;
+                }
+
+                if( tokensEaten == 0 ) {
+                    let definedCommand = getDefinedCommand( tokenIter[0], turtleContext );
+                    if( definedCommand !== undefined ) {
+                        if( (tokenIter.length - 1) < definedCommand.vars.length ) {
+                            setStatusMessage( "Defined command " + tokenIter[0] + " needs " + definedCommand.vars.length + " parameters." );
+                            return null;
+                        }
+                        tokensEaten = definedCommand.vars.length + 1;
+                        currentCommand += tokensEaten;
+                        continue;
+                    }
+                }
+
+                if( tokensEaten == 0 ) {
+                    if( isAVariable( tokenIter[0] ) ) {
+                        if( turtleContext.outputVariable !== null ) {
+                            setStatusMessage("Trying to set " + tokenIter[0] + " when " + turtleContext.outputVariable + " is already set to be the output." );
+                            return null;
+                        }
+                        tokensEaten = 1;
+                        currentCommand += tokensEaten;
+                        turtleContext.outputVariable = tokenIter[0];
+                        continue;
+                    }
+                }
+                
+                if( tokensEaten == 0 ) {
+                    setStatusMessage("I did not understand " + turtleCommand[currentCommand] );
+                    clearMath( turtleContext );
+                    return null;
+                }
+            }
+            clearMath( turtleContext );
+            return turtleCommand;
+        }
+
+        function applyCommands( turtleCommands, turtleContext ) {
+            var tokensEaten = 0;
+            var turtleIter = turtleCommands;
+            for( currentCommand = 0; currentCommand < turtleCommands.length; ) {
+                setVariable(":X", turtleContext.x, turtleContext );
+                setVariable(":Y", turtleContext.y, turtleContext );
+                setVariable(":ROT", turtleContext.rot, turtleContext );
+                turtleIter = turtleIter.slice( tokensEaten );
+                tokensEaten = 0;
+                let commandToRun = getCommand( turtleIter[0] );
+                if( commandToRun !== null ) {
+                    if( verboseApply ) console.log("Running " + turtleIter[0]);
+                    var tokensEaten = commandToRun.handler( turtleIter, turtleContext );
+                    if( tokensEaten < 1 ) {
+                        setStatusMessage("Runtime error at " + turtleCommands[ currentCommand ]);
+                        return true;
+                    }
+                }
+                let definedCommand = getDefinedCommand( turtleIter[0], turtleContext );
+                if( tokensEaten == 0 && definedCommand !== undefined ) {
+                    if( verboseApply ) console.log("Running Defined " + turtleIter[0]);
+                    pushVariableContext( turtleContext );
+                    for( let i = 0; i < definedCommand.vars.length; ++i ) {
+                        setVariable( definedCommand.vars[i], turtleIter[ 1 + i ], turtleContext );
+                    }
+                    let innerCommands = definedCommand.commands;
+                    for( let i = 0; i < innerCommands.length; ++i ) {
+                        if( applyCommands( innerCommands[i], turtleContext ) ) {
+                            popVariableContext( turtleContext );
+                            return true;
+                        }
+                    }
+                    popVariableContext( turtleContext );
+                    tokensEaten = 1 + definedCommand.vars.length;
+                }
+                if( tokensEaten == 0 && isAVariable( turtleIter[0] ) ) {
+                    if( verboseApply ) console.log("Output Variable: " + turtleIter[0]);
+                    turtleContext.outputVariable = turtleIter[0];
+                    tokensEaten = 1;
+                }
+                currentCommand += tokensEaten;
+            }
+            if( turtleContext.outputVariable !== null ) {
+                if( verboseApply ) console.log("Setting " + turtleContext.outputVariable + " to " + turtleContext.currentMath );
+                setVariable( turtleContext.outputVariable, turtleContext.currentMath, turtleContext );
+            }
+            clearMath( turtleContext );
+            return false;
+        }
+
+        function processCommand( command ) {
+            let handled = false;
+            let trimmedCommand = command.trim();
+            let splits = command.split(" ");
+            splits = splits.filter( (ell) => ell.length > 0 );
+
+            let processedCommands = parseCommand( splits, globalParseState );
+
+            handled = processedCommands != null;
+            if( handled ) {
+                if( commandAccumulator == null ) {
+                    applyCommands( splits, globalParseState );
+                    clearInputBox();
+                } else {
+                    commandAccumulator.push( processedCommands );
+                    clearInputBox();
+                }
+            }
+            return handled;
+        }
+
+        window.onload = function () {
+            fillHelp();
+            deleteLineFromAria();
+        }
+    </script>
+</body>
+</html>
