@@ -176,7 +176,8 @@ td {
     <noscript>You're going to need javascript for any of this to work.</noscript>
     <div id="thehelp" class="hidden top-screen-part help scroll">
     </div>
-    <div id="outputDiv" class="top-screen-part" style="margin:auto;align-content:center">
+    <div id="outputScrollDiv" class="top-screen-part scroll">
+        <div class="output-area" id="outputDiv"></div>
     </div>
     <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
     <div style="position: relative" class="bottom-screen-part">
@@ -206,7 +207,19 @@ td {
         var commandAccumulatorName = null;
         var commandAccumulator = null;
         var commandVariables = null;
-        
+
+        var maxBackscroll = 300;
+
+        function addLine( text ) {
+            let newElement = document.createElement("div");
+            newElement.textContent = text;
+            outputDiv.appendChild( newElement );
+            if( outputDiv.childElementCount > maxBackscroll )
+                outputDiv.removeChild( outputDiv.firstChild );
+                
+            outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
             if( currentInputCacheIndex == 0 ) {
@@ -318,7 +331,6 @@ td {
                     break;
                 }
             }
-            pushForUndo();
         }
 
         function clearInputBox() {
@@ -330,41 +342,15 @@ td {
             "definedCommands":{},
             "globalVariables":{":PI":3.141592654,":E":2.718281828459},
             "currentMath":0.0,
-            "outputVariable":null,
+            "audioNodes":null,
+            "audioContext":null,
             "variableStack":[]
         };
 
-        var globalParseState = structuredClone(rootParseState);
+        var globalParseState = null;
 
-        function xyFromContext(x,y,turtleContext) {
-            return {"x":Math.floor(Number(x)),"y":Math.floor(Number(turtleContext.height)-Number(y))};
-        }
-
-        function applyPathOp( op, x, y, turtleContext ) {
-            lastOp = turtleContext.lastpathoperation;
-            turtleContext.lastpathoperation = op;
-            if( op != "M" ) {
-                if( lastOp == "M" ) {
-                    position = xyFromContext(turtleContext.x, turtleContext.y,turtleContext);
-                    turtleContext.accumulator += "M" +
-                        position.x + " " + position.y;
-                }
-                position = xyFromContext(x,y,turtleContext);
-                turtleContext.accumulator += (lastOp!=op?op:" ") +
-                    position.x + " " + position.y;
-            }
-            turtleContext.x = x;
-            turtleContext.y = y;
-            return true;
-        }
-
-        function privateMoveTo( x, y, turtleContext ) {
-            if( turtleContext.pen ) {
-                applyPathOp( "L", x, y, turtleContext );
-            } else {
-                applyPathOp( "M", x, y, turtleContext );
-            }
-            applyTurtle( turtleContext );
+        function xyFromContext(x,y,parseContext) {
+            return {"x":Math.floor(Number(x)),"y":Math.floor(Number(parseContext.height)-Number(y))};
         }
 
         function getCommand( forThis ) {
@@ -376,10 +362,302 @@ td {
             return null;
         }
 
+        function isAVariable( aString ) {
+            if( aString === undefined ) return false;
+            if( typeof aString != "string" ) return false;
+            return aString.startsWith(":")
+        }
+
+        function parseNumberOrVariable( aString, turtleState ) {
+            if( isAVariable( aString ) ) {
+                return aString;
+            }
+            return Number(aString);
+        }
+
+        function setVariable(aVariable, aValue, parseState ) {
+            if( !isAVariable( aVariable ) ) {
+                return true;
+            }
+            if( parseState.variableStack.length > 0 ) {
+                parseState.variableStack[parseState.variableStack.length - 1][ aVariable ] = handleNumberOrVariable(aValue, parseState);
+            } else {
+                parseState.globalVariables[ aVariable ] = handleNumberOrVariable( aValue, parseState );
+            }
+            return false;
+        }
+
         var commands = [
+            { "command":"list", "handler":handleList, "parser":parseList, "helpcommand":"list <node>", "helpdesc":"List the parameters we can set on the named node."},
+            { "command":"delete", "handler":handleDelete, "parser":parseDelete, "helpcommand":"delete <node>", "helpdesc":"Deletes a tracked node." },
+            { "command":"start", "handler":handleStart, "parser":parseStart, "helpcommand":"start <node>", "helpdesc":"Starts a node, like an osciallator."},
+            { "command":"stop", "handler":handleStop, "parser":parseStop, "helpcommand":"stop <node>", "helpdesc":"Stops a node, like an oscillator." },
+            { "command":"connect", "handler":handleConnect, "parser":parseConnect, "helpcommand":"connect <node> <node> [<node>....]", "helpdesc":"Connects nodes to other nodes, source->destination. Special node named 'output' is the final output." },
+            { "command":"set", "handler":handleSet, "parser":parseSet, "helpcommand":"set <node> <parameter> <value>", "helpdesc":"Live sets the <parameter> on <node> with <value>" },
+            { "command":"addsource", "handler":handleSource, "parser":parseSource, "helpcommand":"addsource [oscillator|wavfile] <name>", "helpdesc":"Creates a new audio source, either 'oscillator' or 'name of audio file' attached to <name>" },
+            { "command":"create", "handler":handleAddNode, "parser":parseAddNode, "helpcommand":"create <nodeType> <nodeName>", "helpdesc":"Creates a new process node, types are 'gain' 'iir' 'periodic' shaper' 'compressor' 'delay' 'convolver' or 'biquad'" },
+            { "command":"clear", "handler":handleClear, "parser":parseClear,"helpcommand":"clear","helpdesc":"Clears the global audio thing out." },
             { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply, "helpcommand":"verboseapply", "helpdesc":"Turns on verbose logging of commands running in the console log of the browser."},
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" }
         ];
+
+        function parseList( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage("Command 'list <name>' needs a name parameter" );
+                return -1;
+            }
+            return 2;
+        }
+
+        var typeToParameters = {
+            "OscillatorNode":{"parameters":["frequency","type"],"type":["sine","square","sawtooth","triangle"]},
+            "WaveShaperNode":{"parameters":["curve","oversample"]},
+            "DelayNode":{"parameters":["delay"]},
+            "ConvolverNode":{},
+            "BiquadFilterNode":{"parameters":["frequency","detune","Q","gain","type"],"type":["lowpass","highpass","bandpass","lowshelf","highshelf","peaking","notch","allpass"]},
+            "IIRFilterNode":{}
+        };
+
+        function findParameters( node ) {
+            let typeName = node.constructor.name;
+            return typeToParameters[typeName];
+        }
+
+        function handleList( parseCommands, parseState ) {
+            let nodeToList = parseState.audioNodes[ parseCommands[ 1 ] ];
+            if( nodeToList === undefined ) {
+                setStatusMessage("Could not find node named " + parseCommands[1]);
+                return -1;
+            }
+            
+            let params = findParameters( nodeToList );
+            if( params === undefined ) {
+                setStatusMessage("Node is not a thing we can get the parameters for.");
+                return -1;
+            }
+
+            let outLine = "";
+            params.parameters.forEach( a => { outLine = "Parameter: " + a; let values = params[a]; if ( values ) { outLine += " validValues: "; values.forEach( v => { outLine += (" " + v)} ); }; addLine(outLine); } );
+            
+            return 2;
+        }
+
+        function parseDelete( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage("Command 'delete <name>' needs a name parameter" );
+                return -1;
+            }
+            return 2;
+        }
+
+        function handleDelete( parseCommands, parseState ) {
+            let nodeToDelete = parseState.audioNodes[ parseCommands[ 1 ] ];
+            if( nodeToDelete === undefined ) {
+                setStatusMessage( "Could not find node " + parseCommands[1] );
+                return -1;
+            }
+            parseState.audioNodes[ parseCommands[ 1 ] ] = undefined;
+            return 2;
+        }
+
+        function privateHandleStartStop( parseCommands, parseState, start ) {
+            let nodeToStart = parseState.audioNodes[ parseCommands[ 1 ] ];
+            if( nodeToStart === undefined ) {
+                setStatusMessage( "Could not find node " + parseCommands[1] );
+                return -1;
+            }
+            try {
+                if( start ) {
+                    nodeToStart.start();
+                } else {
+                    nodeToStart.stop();
+                    let freq = nodeToStart.frequency.value;
+                    let type = nodeToStart.type;
+                    nodeToStart = parseState.audioContext.createOscillator();
+                    parseState.audioNodes[ parseCommands[1] ] = nodeToStart;
+                    nodeToStart.frequency.value = freq;
+                    nodeToStart.type.value = type;
+                }
+            } catch(e) {
+                console.log(e);
+                setStatusMessage("Start could not start node named " + parseCommands[1]);
+                return -1;
+            }
+            return 2;
+        }
+
+        function parseStart( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage( "start <node> needs a node name to start." );
+                return -1;
+            }
+        }
+
+        function handleStart( parseCommands, parseState ) {
+            return privateHandleStartStop( parseCommands, parseState, true );
+        }
+
+        function parseStop( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage( "<node> needs a node name to start." );
+                return -1;
+            }
+        } 
+        function handleStop( parseCommands, parseState ) {
+            return privateHandleStartStop( parseCommands, parseState, false );
+        }
+
+        function parseSource( parseCommands, parseState ) {
+            return -1;
+        }
+        function handleSource( parseCommands, parseState ) {
+            return -1;
+        }
+
+        function parseConnect( parseCommands, parseState ) {
+            return parseCommands.length;
+        }
+
+        function handleConnect( parseCommands, parseState ) {
+            try {
+                let baseNode = null;
+                let nextNode = null;
+                for( let i = 1; i < parseCommands.length; ++i ) {
+                    nextNode = parseState.audioNodes[ parseCommands[i] ];
+                    if( nextNode === undefined ) {
+                        setStatusMessage("Could not find node named " + parseCommands[i]);
+                    }
+                    if( baseNode != null ) baseNode = baseNode.connect( nextNode );
+                    baseNode = nextNode;
+                }
+            } catch(e) {
+                setStatusMessage("Failed to connect nodes.");
+                return -1;
+            }
+            return parseCommands.length;
+        }
+
+
+        function parseAddNode( parseCommands, parseState ) {
+            if( parseCommands.length < 3 ) {
+                setStatusMessage( "create <nodeType> <nodeName> requires 2 parameters." );
+                return -1;
+            }
+            switch( parseCommands[1] ) {
+                case "oscillator":
+                    break;
+                case "gain":
+                    break;
+                case "iir":
+                    break;
+                case "periodic":
+                    break;
+                case "shaper":
+                    break;
+                case "compressor":
+                    break;
+                case "delay":
+                    break;
+                case "convolver":
+                    break;
+                case "biquad":
+                    break;
+                default:
+                    setStatusMessage("create <nodeType> <nodeName> nodeType incorrect. Check help.");
+                    return -1;
+            }
+            if( parseState.audioNodes[ parseCommands[2] ] !== undefined ) {
+                setStatusMessage("Node " + parseCommands[2] + " already exists.");
+                return -1;
+            }
+            return 3
+
+        }
+
+        function handleAddNode( parseCommands, parseState ) {
+            let newNode = null;
+            switch( parseCommands[1] ) {
+                case "oscillator":
+                    newNode = parseState.audioContext.createOscillator();
+                    break;
+                case "gain":
+                    newNode = parseState.audioContext.createGain();
+                    break;
+                case "iir":
+                    let feedforward = [ 0.0002, 0.0004, 0.0002 ];
+                    let feedback = [ 1.0, 1.0, 1.0 ];
+                    newNode = parseState.audioContext.createIIRFilter( feedforward, feedback );
+                    break;
+                case "periodic":
+                    newNode = parseState.audioContext.createPeriodicWave();
+                    break;
+                case "shaper":
+                    newNode = parseState.audioContext.createWaveShaper();
+                    break;
+                case "compressor":
+                    newNode = parseState.audioContext.createDynamicsCompressor();
+                    break;
+                case "delay":
+                    newNode = parseState.audioContext.createDelay();
+                    break;
+                case "convolver":
+                    newNode = parseState.audioContext.createConvolver();
+                    break;
+                case "biquad":
+                    newNode = parseState.audioContext.createBiquadFilter();
+                    break;
+                default:
+                    setStatusMessage("Runtime error, no node named " + parseCommands[1]);
+                    return -1;
+            }
+
+            parseState.audioNodes[ parseCommands[2] ] = newNode;
+
+            return 3;
+        }
+
+        function parseSet( parseCommands, parseContext ) {
+            if( parseCommands.length < 4 ) {
+                setStatusMessage("Command 'set <node> <parameter> <value>' needs at least 3 parameters" );
+            }
+            return 4;
+        }
+
+        function handleSet( parseCommands, parseContext ) {
+            let theNode = parseContext.audioNodes[ parseCommands[1] ];
+            if( theNode === undefined ) {
+                setStatusMessage("Unknown audio node " + parseCommands[1]);
+                return -1;
+            }
+            let theAudioParameter = theNode[ parseCommands[2] ];
+            if( theAudioParameter === undefined ) {
+                setStatusMessage("Node named " + parseCommands[1] + " does not have a parameter named " + parseCommands[2] );
+                return -1;
+            }
+            try {
+                if( typeof theAudioParameter == "string" ) {
+                    theNode[ parseCommands[2] ] = parseCommands[3];
+                } else {
+                    theAudioParameter.setValueAtTime( parseCommands[3], parseContext.audioContext.currentTime );
+                }
+            } catch (e) {
+                console.log(e);
+                setStatusMessage("Node named " + parseCommands[1] + " tried to set " + parseCommands[2] + " to " + parseCommands[3] );
+            }
+            return 4;
+        }
+
+        function parseClear() {
+            return 1;
+        }
+
+        function handleClear( parseCommand, parseContext ) {
+            if( parseContext.audioContext !== null ) {
+                parseContext.audioContext.close();
+            }
+            resetParseState();
+            return 1;
+        }
 
         function fillHelp() {
             thehelp.innerHTML = "";
@@ -411,19 +689,19 @@ td {
             }
         }
 
-        function parseHelp( turtleCommand, turtleContext ) {
+        function parseHelp( parseCommand, parseContext ) {
             return 1;
         }
-        function handleHelp( turtleCommand, turtleContext ) {
+        function handleHelp( parseCommand, parseContext ) {
             thehelp.classList.toggle("hidden");
             return 1;
         }
 
-        function handleSave( turtleCommand, turtleContext ) {
+        function handleSave( parseCommand, parseContext ) {
             let b = new Blob(["THING"], {type:"text/plain"});
             let url = URL.createObjectURL(b);
             let a = document.createElement("a");
-            let filename = turtleCommand[1];
+            let filename = parseCommand[1];
             if( !filename.endsWith(".svg") ) filename = filename + ".svg"
             a.href = url;
             a.download = filename;
@@ -431,38 +709,38 @@ td {
             a.click();
             document.body.removeChild(a);
         }
-        function parseVerboseApply( turtleCommand, turtleContext ) {
+        function parseVerboseApply( parseCommand, parseContext ) {
             return 1;
         }
-        function handleVerboseApply( turtleCommadn, turtleContext ) {
+        function handleVerboseApply( parseCommand, parseContext ) {
             verboseApply = !verboseApply;
             return 1;
         }
 
-        function getDefinedCommand( what, turtleContext ) {
-            return turtleContext.definedCommands[ what ];
+        function getDefinedCommand( what, parseContext ) {
+            return parseContext.definedCommands[ what ];
         }
 
-        function parseCommand( turtleCommand, turtleContext ) {
+        function parseCommand( parseCommand, parseContext ) {
             var tokensEaten = 0;
-            var tokenIter = turtleCommand;
-            for( currentCommand = 0; currentCommand < turtleCommand.length; ) {
+            var tokenIter = parseCommand;
+            for( currentCommand = 0; currentCommand < parseCommand.length; ) {
                 var tokenIter = tokenIter.slice(tokensEaten);
                 tokensEaten = 0;
                 var commandToRun = getCommand( tokenIter[0] );
                 if( commandToRun !== null ) {
-                    tokensEaten = commandToRun.parser( tokenIter, turtleContext );
+                    tokensEaten = commandToRun.parser( tokenIter, parseContext );
                     if( tokensEaten < 1 ) return null;
                     //rewrite original commands with modified bits.
                     for( var j = 0; j < tokensEaten; ++j ) {
-                        turtleCommand[ currentCommand + j ] = tokenIter[ j ];
+                        parseCommand[ currentCommand + j ] = tokenIter[ j ];
                     }
                     currentCommand += tokensEaten;
                     break;
                 }
 
                 if( tokensEaten == 0 ) {
-                    let definedCommand = getDefinedCommand( tokenIter[0], turtleContext );
+                    let definedCommand = getDefinedCommand( tokenIter[0], parseContext );
                     if( definedCommand !== undefined ) {
                         if( (tokenIter.length - 1) < definedCommand.vars.length ) {
                             setStatusMessage( "Defined command " + tokenIter[0] + " needs " + definedCommand.vars.length + " parameters." );
@@ -475,75 +753,53 @@ td {
                 }
 
                 if( tokensEaten == 0 ) {
-                    if( isAVariable( tokenIter[0] ) ) {
-                        if( turtleContext.outputVariable !== null ) {
-                            setStatusMessage("Trying to set " + tokenIter[0] + " when " + turtleContext.outputVariable + " is already set to be the output." );
-                            return null;
-                        }
-                        tokensEaten = 1;
-                        currentCommand += tokensEaten;
-                        turtleContext.outputVariable = tokenIter[0];
-                        continue;
-                    }
-                }
-                
-                if( tokensEaten == 0 ) {
-                    setStatusMessage("I did not understand " + turtleCommand[currentCommand] );
-                    clearMath( turtleContext );
+                    setStatusMessage("I did not understand " + parseCommand[currentCommand] );
                     return null;
                 }
             }
-            clearMath( turtleContext );
-            return turtleCommand;
+            return parseCommand;
         }
 
-        function applyCommands( turtleCommands, turtleContext ) {
+        function applyCommands( parseCommands, parseContext ) {
             var tokensEaten = 0;
-            var turtleIter = turtleCommands;
-            for( currentCommand = 0; currentCommand < turtleCommands.length; ) {
-                setVariable(":X", turtleContext.x, turtleContext );
-                setVariable(":Y", turtleContext.y, turtleContext );
-                setVariable(":ROT", turtleContext.rot, turtleContext );
-                turtleIter = turtleIter.slice( tokensEaten );
+            var parseIter = parseCommands;
+            for( currentCommand = 0; currentCommand < parseCommands.length; ) {
+                parseIter = parseIter.slice( tokensEaten );
                 tokensEaten = 0;
-                let commandToRun = getCommand( turtleIter[0] );
+                let commandToRun = getCommand( parseIter[0] );
                 if( commandToRun !== null ) {
-                    if( verboseApply ) console.log("Running " + turtleIter[0]);
-                    var tokensEaten = commandToRun.handler( turtleIter, turtleContext );
+                    if( verboseApply ) console.log("Running " + parseIter[0]);
+                    var tokensEaten = commandToRun.handler( parseIter, parseContext );
                     if( tokensEaten < 1 ) {
-                        setStatusMessage("Runtime error at " + turtleCommands[ currentCommand ]);
+                        setStatusMessage("Runtime error at " + parseCommands[ currentCommand ]);
                         return true;
                     }
                 }
-                let definedCommand = getDefinedCommand( turtleIter[0], turtleContext );
+                let definedCommand = getDefinedCommand( parseIter[0], parseContext );
                 if( tokensEaten == 0 && definedCommand !== undefined ) {
-                    if( verboseApply ) console.log("Running Defined " + turtleIter[0]);
-                    pushVariableContext( turtleContext );
+                    if( verboseApply ) console.log("Running Defined " + parseIter[0]);
                     for( let i = 0; i < definedCommand.vars.length; ++i ) {
-                        setVariable( definedCommand.vars[i], turtleIter[ 1 + i ], turtleContext );
+                        setVariable( definedCommand.vars[i], parseIter[ 1 + i ], parseContext );
                     }
                     let innerCommands = definedCommand.commands;
                     for( let i = 0; i < innerCommands.length; ++i ) {
-                        if( applyCommands( innerCommands[i], turtleContext ) ) {
-                            popVariableContext( turtleContext );
+                        if( applyCommands( innerCommands[i], parseContext ) ) {
                             return true;
                         }
                     }
-                    popVariableContext( turtleContext );
                     tokensEaten = 1 + definedCommand.vars.length;
                 }
-                if( tokensEaten == 0 && isAVariable( turtleIter[0] ) ) {
-                    if( verboseApply ) console.log("Output Variable: " + turtleIter[0]);
-                    turtleContext.outputVariable = turtleIter[0];
+                if( tokensEaten == 0 && isAVariable( parseIter[0] ) ) {
+                    if( verboseApply ) console.log("Output Variable: " + parseIter[0]);
+                    parseContext.outputVariable = parseIter[0];
                     tokensEaten = 1;
                 }
                 currentCommand += tokensEaten;
             }
-            if( turtleContext.outputVariable !== null ) {
-                if( verboseApply ) console.log("Setting " + turtleContext.outputVariable + " to " + turtleContext.currentMath );
-                setVariable( turtleContext.outputVariable, turtleContext.currentMath, turtleContext );
+            if( parseContext.outputVariable !== null ) {
+                if( verboseApply ) console.log("Setting " + parseContext.outputVariable + " to " + parseContext.currentMath );
+                setVariable( parseContext.outputVariable, parseContext.currentMath, parseContext );
             }
-            clearMath( turtleContext );
             return false;
         }
 
@@ -568,9 +824,17 @@ td {
             return handled;
         }
 
+        function resetParseState() {
+            globalParseState = structuredClone(rootParseState);
+            globalParseState.audioContext = new AudioContext();
+            globalParseState.audioNodes = {};
+            globalParseState.audioNodes[ "output" ] = globalParseState.audioContext.destination;
+        }
+
         window.onload = function () {
             fillHelp();
             deleteLineFromAria();
+            resetParseState();
         }
     </script>
 </body>
