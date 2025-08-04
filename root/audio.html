@@ -86,8 +86,61 @@ body {
 }
 /*Where the scroll happens*/
 .top-screen-part {
-    min-height: 80dvh;
-    max-height: 80dvh;
+    min-height: 60dvh;
+    max-height: 60dvh;
+}
+.over-keyboard {
+    z-index: 2;
+}
+.keyboard-area {
+    position: relative;
+}
+.keys-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+.black-keys-area {
+    height: 8dvh;
+}
+.key {
+    float: left;
+    width: calc( (95% / 52) - 2px );
+    margin-left: 1;
+    margin-right: 1;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.key-half {
+    width: calc( ((95% / 52) - 2px) / 2 );
+    height: 1;
+}
+.key-empty {
+    height: 1;
+}
+.key-black {
+    background: black;
+    min-height: 8dvh;
+    max-height: 8dvh;
+}
+.key-white {
+    background: white;
+    min-height: 12dvh;
+    max-height: 12dvh;
+}
+.key-active {
+    background: gray;
+}
+
+.outer-keyboard-area {
+    position: relative;
+    min-height: 20dvh;
+    max-heigh: 20dvh;
+    width: 100%;
+    margin: 0;
 }
 /*Input area*/
 .bottom-screen-part {
@@ -179,6 +232,17 @@ td {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <div class="output-area" id="outputDiv"></div>
     </div>
+    <div id="outerKeyboardDiv" class="outer-keyboard-area">
+    
+    <div class="keys-area">
+        <div id="whiteKeysDiv" class="keyboard-area">
+        </div>
+    </div>
+    <div class="keys-area black-keys-area">
+        <div id="blackKeysDiv" class="keyboard-area over-keyboard">
+        </div>
+    </div>
+    </div>
     <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
     <div style="position: relative" class="bottom-screen-part">
         <div id="lebar" class="statusbar lowerpadded">
@@ -209,6 +273,8 @@ td {
         var commandVariables = null;
 
         var maxBackscroll = 300;
+
+        var instrumentWave = "sine";
 
         function addLine( text ) {
             let newElement = document.createElement("div");
@@ -306,6 +372,10 @@ td {
             
             lebar.innerText = text;
         }
+        function setStatusMessageIfNotSet( text ) {
+            if( clearStatusTimeout ) return;
+            setStatusMessage( text );
+        }
 
         let scrollbackTimeout = 5000;
 
@@ -388,6 +458,8 @@ td {
         }
 
         var commands = [
+            { "command":"wave", "handler":handleWave, "parser":parseWave, "helpcommand":"wave <shape>", "helpdesc":"Sets the default wave shape for the keyboard. One of 'sine' 'square' 'sawtooth' 'triangle'"},
+            { "command":"keyboard", "handler":handleKeyboard, "parser":parseKeyboard, "helpcommand":"keyboard", "helpdesc":"Set up default keyboard instrument. Sine wave, single gain 'instrument' connected to the output node." },
             { "command":"list", "handler":handleList, "parser":parseList, "helpcommand":"list <node>", "helpdesc":"List the parameters we can set on the named node."},
             { "command":"delete", "handler":handleDelete, "parser":parseDelete, "helpcommand":"delete <node>", "helpdesc":"Deletes a tracked node." },
             { "command":"start", "handler":handleStart, "parser":parseStart, "helpcommand":"start <node>", "helpdesc":"Starts a node, like an osciallator."},
@@ -401,6 +473,39 @@ td {
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" }
         ];
 
+        function parseWave( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) { 
+                setStatusMessage("Command 'wave' needs 1 parameter.");
+            }
+            switch( parseCommands[1] ) {
+                case "sine":
+                case "triangle":
+                case "square":
+                case "sawtooth":
+                    break;
+                default:
+                    setStatusMessage("Wave needs to be 'sine' 'triangle' 'square' or 'sawtooth'");
+                    return -1;
+            }
+            return 2
+        }
+        function handleWave( parseCommands, parseState ) {
+            instrumentWave = parseCommands[1];
+            return 2;
+        }
+        function parseKeyboard( parseCommands, parseState ) {
+            return 1;
+        }
+
+        function handleKeyboard( parseCommands, parseState ) {
+            processCommand( "create gain instrument" );
+            processCommand( "connect instrument output" );
+            processCommand( "set instrument gain 0.2" );
+
+            return 1;
+        }
+        
+
         function parseList( parseCommands, parseState ) {
             if( parseCommands.length < 2 ) {
                 setStatusMessage("Command 'list <name>' needs a name parameter" );
@@ -412,7 +517,7 @@ td {
         var typeToParameters = {
             "OscillatorNode":{"parameters":["frequency","type"],"type":["sine","square","sawtooth","triangle"]},
             "WaveShaperNode":{"parameters":["curve","oversample"]},
-            "DelayNode":{"parameters":["delay"]},
+            "DelayNode":{"parameters":["delayTime"]},
             "ConvolverNode":{},
             "BiquadFilterNode":{"parameters":["frequency","detune","Q","gain","type"],"type":["lowpass","highpass","bandpass","lowshelf","highshelf","peaking","notch","allpass"]},
             "IIRFilterNode":{}
@@ -643,6 +748,7 @@ td {
             } catch (e) {
                 console.log(e);
                 setStatusMessage("Node named " + parseCommands[1] + " tried to set " + parseCommands[2] + " to " + parseCommands[3] );
+                return -1;
             }
             return 4;
         }
@@ -771,7 +877,7 @@ td {
                     if( verboseApply ) console.log("Running " + parseIter[0]);
                     var tokensEaten = commandToRun.handler( parseIter, parseContext );
                     if( tokensEaten < 1 ) {
-                        setStatusMessage("Runtime error at " + parseCommands[ currentCommand ]);
+                        setStatusMessageIfNotSet("Runtime error at " + parseCommands[ currentCommand ]);
                         return true;
                     }
                 }
@@ -831,7 +937,85 @@ td {
             globalParseState.audioNodes[ "output" ] = globalParseState.audioContext.destination;
         }
 
+        function noteKeyDown(evt) {
+            let key = evt.target;
+            if( key.osc ) return;
+            key.osc = globalParseState.audioContext.createOscillator();
+            key.osc.type = instrumentWave;
+            key.osc.frequency.setValueAtTime( key.hz, globalParseState.audioContext.currentTime );
+            key.osc.start();
+            key.osc.connect( globalParseState.audioNodes[ "instrument" ] );
+            key.classList.add("key-active");
+        }
+        function noteKeyEnter(evt) {
+            if( evt.buttons == 1 ) noteKeyDown(evt);
+        }
+        function noteKeyLeave(evt) {
+            noteKeyUp(evt);
+        }
+        function noteKeyUp(evt) {
+            if( evt.target.osc ) evt.target.osc.stop();
+            evt.target.osc = undefined;
+            evt.target.classList.remove("key-active");
+        }
+
+        function buildKeyboard() {
+
+            var noteKeys = "ABCDEFG";
+            var noteWithSharps = "A0CD0FG";
+            let currentOctave = 0;
+            let startHz = 55;
+            let nextHz = 110;
+            let div = (nextHz - startHz) / 12;
+            //Middle a is 440. Each octave is double/half from there.
+            let aKey = document.createElement("div");
+            aKey.classList.add("key", "key-half");
+            blackKeysDiv.appendChild(aKey);
+            let whichNote = 0;
+            for( let i = 0; i < 52; ++i ) {
+                aKey = document.createElement("div");
+                aKey.keyName = noteKeys[i % 7];
+                aKey.hz = startHz + (whichNote * div);
+                aKey.keyNum = whichNote;
+                ++whichNote;
+                aKey.classList.add( "key","key-white" );
+                aKey.ondragstart = "return false";
+                aKey.onmousedown = noteKeyDown;
+                aKey.onmouseup = noteKeyUp;
+                aKey.onmouseleave = noteKeyLeave;
+                aKey.onmouseenter = noteKeyEnter;
+                aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
+                whiteKeysDiv.appendChild( aKey );
+                aKey = document.createElement("div");
+                aKey.keyName = noteWithSharps[ i % 7 ];
+                aKey.classList.add("key");
+                if( aKey.keyName == "0" ) {
+                    aKey.classList.add("key-empty");
+                } else {
+                    aKey.keyName += "#";
+                    aKey.classList.add("key-black");
+                    aKey.hz = startHz + (whichNote * div);
+                    aKey.keyNum = whichNote;
+                    aKey.ondragstart = "return false";
+                    aKey.onmousedown = noteKeyDown;
+                    aKey.onmouseup = noteKeyUp;
+                    aKey.onmouseleave = noteKeyLeave;
+                    aKey.onmouseenter = noteKeyEnter;
+                    aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
+                    ++whichNote;
+                    if( whichNote == 12 ) {
+                        whichNote = 0;
+                        startHz = nextHz;
+                        nextHz = nextHz * 2;
+                        div = (nextHz - startHz)/12;
+                    }
+                }
+                blackKeysDiv.appendChild( aKey );
+            }
+        }
+
         window.onload = function () {
+            buildKeyboard();
             fillHelp();
             deleteLineFromAria();
             resetParseState();
