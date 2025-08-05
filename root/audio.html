@@ -912,7 +912,7 @@ td {
         function processCommand( command ) {
             let handled = false;
             let trimmedCommand = command.trim();
-            let splits = command.split(" ");
+            let splits = command.split( " " );
             splits = splits.filter( (ell) => ell.length > 0 );
 
             let processedCommands = parseCommand( splits, globalParseState );
@@ -959,56 +959,65 @@ td {
             evt.target.classList.remove("key-active");
         }
 
-        function buildKeyboard() {
+        function noteFromBase( baseHz, noteInScale ) {
+            const twoToThe12thRoot = 1.0594631;
+            let outputHz = baseHz;
+            for( let i = 0; i < noteInScale; ++i ) {
+                outputHz *= twoToThe12thRoot;
+            }
+            return outputHz;
+        }
 
+        function keyDiv( blackWhiteOrEmpty ) {
+            aKey = document.createElement("div");
+            aKey.classList.add( "key", blackWhiteOrEmpty );
+            aKey.onmousedown = noteKeyDown;
+            aKey.onmouseup = noteKeyUp;
+            aKey.onmouseleave = noteKeyLeave;
+            aKey.onmouseenter = noteKeyEnter;
+            aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
+            return aKey;
+        }
+
+        function printInstrument() {
+            //Start with the instrument node.
+            
+        }
+
+        function buildKeyboard() {
             var noteKeys = "ABCDEFG";
             var noteWithSharps = "A0CD0FG";
+            const numNoteKeys = 7;
+            const numWhiteKeys = 52;
             let currentOctave = 0;
             let startHz = 55;
-            let nextHz = 110;
-            let div = (nextHz - startHz) / 12;
-            //Middle a is 440. Each octave is double/half from there.
             let aKey = document.createElement("div");
             aKey.classList.add("key", "key-half");
             blackKeysDiv.appendChild(aKey);
             let whichNote = 0;
-            for( let i = 0; i < 52; ++i ) {
-                aKey = document.createElement("div");
-                aKey.keyName = noteKeys[i % 7];
-                aKey.hz = startHz + (whichNote * div);
+            for( let i = 0; i < numWhiteKeys; ++i ) {
+                aKey = keyDiv( "key-white" );
+                aKey.keyName = noteKeys[i%numNoteKeys];
+                aKey.hz = noteFromBase( startHz, whichNote );
                 aKey.keyNum = whichNote;
                 ++whichNote;
-                aKey.classList.add( "key","key-white" );
-                aKey.ondragstart = "return false";
-                aKey.onmousedown = noteKeyDown;
-                aKey.onmouseup = noteKeyUp;
-                aKey.onmouseleave = noteKeyLeave;
-                aKey.onmouseenter = noteKeyEnter;
-                aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
                 whiteKeysDiv.appendChild( aKey );
                 aKey = document.createElement("div");
-                aKey.keyName = noteWithSharps[ i % 7 ];
-                aKey.classList.add("key");
-                if( aKey.keyName == "0" ) {
-                    aKey.classList.add("key-empty");
+                let keyName = noteWithSharps[i%numNoteKeys];
+                if( i == (numWhiteKeys - 1) ) {
+                    aKey = keyDiv("key-half");
+                } else if( keyName == "0" ) {
+                    aKey = keyDiv( "key-empty" );
                 } else {
-                    aKey.keyName += "#";
-                    aKey.classList.add("key-black");
-                    aKey.hz = startHz + (whichNote * div);
+                    aKey = keyDiv( "key-black" );
+                    aKey.keyName = keyName + "#";
+                    aKey.hz = noteFromBase( startHz, whichNote );
                     aKey.keyNum = whichNote;
-                    aKey.ondragstart = "return false";
-                    aKey.onmousedown = noteKeyDown;
-                    aKey.onmouseup = noteKeyUp;
-                    aKey.onmouseleave = noteKeyLeave;
-                    aKey.onmouseenter = noteKeyEnter;
-                    aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
                     ++whichNote;
-                    if( whichNote == 12 ) {
-                        whichNote = 0;
-                        startHz = nextHz;
-                        nextHz = nextHz * 2;
-                        div = (nextHz - startHz)/12;
-                    }
+                }
+                if( whichNote == 12 ) {
+                    whichNote = 0;
+                    startHz = startHz * 2;
                 }
                 blackKeysDiv.appendChild( aKey );
             }
