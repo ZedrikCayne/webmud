@@ -274,7 +274,10 @@ td {
 
         var maxBackscroll = 300;
 
+        var instrumentSustain = false;
         var instrumentWave = "sine";
+        var instrumentAttack = 0.10;
+        var instrumentRelease = 0.15;
 
         function addLine( text ) {
             let newElement = document.createElement("div");
@@ -458,12 +461,16 @@ td {
         }
 
         var commands = [
+            { "command":"sustain", "handler":handleSustain, "parser":parseSustain, "helpcommand":"sustain", "helpdesc":"Hits the sustain pedal. No notes turn off until you sustain again. Toggle." },
+            { "command":"release", "handler":handleRelease, "parser":parseRelease, "helpcommand":"release <time>", "helpdesc":"Amount of time a note ramps from 1 to 0 in volume."},
+            { "command":"attack", "handler":handleAttack, "parser":parseAttack, "helpcommand":"attack <time>", "helpdesc":"Amount of time a note ramps from 0 to 1 in volume." },
             { "command":"wave", "handler":handleWave, "parser":parseWave, "helpcommand":"wave <shape>", "helpdesc":"Sets the default wave shape for the keyboard. One of 'sine' 'square' 'sawtooth' 'triangle'"},
             { "command":"keyboard", "handler":handleKeyboard, "parser":parseKeyboard, "helpcommand":"keyboard", "helpdesc":"Set up default keyboard instrument. Sine wave, single gain 'instrument' connected to the output node." },
             { "command":"list", "handler":handleList, "parser":parseList, "helpcommand":"list <node>", "helpdesc":"List the parameters we can set on the named node."},
             { "command":"delete", "handler":handleDelete, "parser":parseDelete, "helpcommand":"delete <node>", "helpdesc":"Deletes a tracked node." },
             { "command":"start", "handler":handleStart, "parser":parseStart, "helpcommand":"start <node>", "helpdesc":"Starts a node, like an osciallator."},
             { "command":"stop", "handler":handleStop, "parser":parseStop, "helpcommand":"stop <node>", "helpdesc":"Stops a node, like an oscillator." },
+            { "command":"disconnect", "handler":handleDisconnect, "parser":parseDisconnect, "helpcommand":"disconnect <node> <node> [<node>....]", "helpdesc":"Disconnect nodes." },
             { "command":"connect", "handler":handleConnect, "parser":parseConnect, "helpcommand":"connect <node> <node> [<node>....]", "helpdesc":"Connects nodes to other nodes, source->destination. Special node named 'output' is the final output." },
             { "command":"set", "handler":handleSet, "parser":parseSet, "helpcommand":"set <node> <parameter> <value>", "helpdesc":"Live sets the <parameter> on <node> with <value>" },
             { "command":"addsource", "handler":handleSource, "parser":parseSource, "helpcommand":"addsource [oscillator|wavfile] <name>", "helpdesc":"Creates a new audio source, either 'oscillator' or 'name of audio file' attached to <name>" },
@@ -472,6 +479,55 @@ td {
             { "command":"verboseapply", "handler":handleVerboseApply, "parser":parseVerboseApply, "helpcommand":"verboseapply", "helpdesc":"Turns on verbose logging of commands running in the console log of the browser."},
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" }
         ];
+
+        function parseSustain( parseCommands, parseState ) {
+            return 1;
+        }
+
+        function handleSustain( parseCommands, parseState ) {
+            instrumentSustain = !instrumentSustain;
+            return 1;
+        }
+
+        function parseRelease( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage("Command release <time> needs a time parameter.");
+                return -1;
+            }
+            let time = Number(parseCommands[1]);
+            if( time == NaN ) {
+                setStatusMessage("Command release <time> time parameter needs to be a number.");
+                return -1;
+            }
+            parseCommands[1] = time;
+            return 2;
+        }
+
+        function handleRelease( parseCommands, parseState ) {
+            instrumentRelease = parseCommands[1];
+
+            return 2;
+        }
+
+        function parseAttack( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage("Command attack <time> needs a time parameter.");
+                return -1;
+            }
+            let time = Number(parseCommands[1]);
+            if( time == NaN ) {
+                setStatusMessage("Command attack <time> time parameter needs to be a number.");
+                return -1;
+            }
+            parseCommands[1] = time;
+            return 2;
+        }
+
+        function handleAttack( parseCommands, parseState ) {
+            instrumentAttack = parseCommands[1];
+
+            return 2;
+        }
 
         function parseWave( parseCommands, parseState ) {
             if( parseCommands.length < 2 ) { 
@@ -499,8 +555,9 @@ td {
 
         function handleKeyboard( parseCommands, parseState ) {
             processCommand( "create gain instrument" );
-            processCommand( "connect instrument output" );
-            processCommand( "set instrument gain 0.2" );
+            processCommand( "create gain volume" );
+            processCommand( "connect instrument volume output" );
+            processCommand( "set volume gain 0.2" );
 
             return 1;
         }
@@ -520,7 +577,8 @@ td {
             "DelayNode":{"parameters":["delayTime"]},
             "ConvolverNode":{},
             "BiquadFilterNode":{"parameters":["frequency","detune","Q","gain","type"],"type":["lowpass","highpass","bandpass","lowshelf","highshelf","peaking","notch","allpass"]},
-            "IIRFilterNode":{}
+            "IIRFilterNode":{},
+            "CompressorNode",{"parameters":["threshold", "knee", "ratio", "attack", "release"]}
         };
 
         function findParameters( node ) {
@@ -619,6 +677,21 @@ td {
             return -1;
         }
 
+        function parseDisconnect( parseCommands, parseState ) {
+            return parseCommands.length;
+        }
+
+        function handleDisconnect( parseCommands, parseState ) {
+            for( let i = 1; i < parseCommands.length; ++i ) {
+                let aNode = parseState.audioNodes[ parseCommands[i] ];
+                if( aNode === undefined ) {
+                    setStatusMessage("Could not find node named " + parseCommands[i] );
+                    return -1;
+                }
+                aNode.disconnect();
+            }
+        }
+
         function parseConnect( parseCommands, parseState ) {
             return parseCommands.length;
         }
@@ -631,8 +704,11 @@ td {
                     nextNode = parseState.audioNodes[ parseCommands[i] ];
                     if( nextNode === undefined ) {
                         setStatusMessage("Could not find node named " + parseCommands[i]);
+                        return -1;
                     }
-                    if( baseNode != null ) baseNode = baseNode.connect( nextNode );
+                    if( baseNode != null ) {
+                        baseNode = baseNode.connect( nextNode );
+                    }
                     baseNode = nextNode;
                 }
             } catch(e) {
@@ -937,16 +1013,64 @@ td {
             globalParseState.audioNodes[ "output" ] = globalParseState.audioContext.destination;
         }
 
+        var notePool = [];
+
+        function getNote() {
+            var returnValue = notePool.pop();
+            if( returnValue === undefined ) {
+                returnValue = { "osc":null, "release":0, "gain":globalParseState.audioContext.createGain() };
+            }
+            returnValue.gain
+                .gain.setValueAtTime(0,0);
+            returnValue.osc = globalParseState.audioContext.createOscillator();
+            return returnValue;
+        }
+
+        function returnNote(aNote) {
+            if( aNote.osc ) aNote.osc.stop();
+            if( aNote.gain ) aNote.gain.disconnect();
+            aNote.osc = null;
+            notePool.push( aNote );
+        }
+
+        function startNote( hz, wave, attack, release ) {
+            var returnValue = getNote();
+
+            returnValue.osc
+                .frequency.setValueAtTime( hz, globalParseState.audioContext.currentTime );
+            returnValue.osc
+                .type = wave;
+            returnValue.osc
+                .start();
+            returnValue.release = release;
+            returnValue.gain
+                .gain.linearRampToValueAtTime( 1, globalParseState.audioContext.currentTime + attack );
+
+            returnValue.osc
+                .connect( returnValue.gain )
+                .connect( globalParseState.audioNodes[ "instrument" ] );
+
+            return returnValue;
+        }
+
+        function endNote( aNote ) {
+            if( !aNote ) return;
+            if( aNote.gain ) {
+                aNote.gain.gain.linearRampToValueAtTime(0,globalParseState.audioContext.currentTime + aNote.release );
+                setTimeout( returnNote, aNote.release * 1150, aNote );
+            } else {
+                console.log("Gain cut.");
+                returnNote( aNote );
+            }
+        }
+
         function noteKeyDown(evt) {
             let key = evt.target;
             if( key.osc ) return;
-            key.osc = globalParseState.audioContext.createOscillator();
-            key.osc.type = instrumentWave;
-            key.osc.frequency.setValueAtTime( key.hz, globalParseState.audioContext.currentTime );
-            key.osc.start();
-            key.osc.connect( globalParseState.audioNodes[ "instrument" ] );
+            key.osc = startNote( key.hz, instrumentWave, instrumentAttack, instrumentRelease );
             key.classList.add("key-active");
         }
+
         function noteKeyEnter(evt) {
             if( evt.buttons == 1 ) noteKeyDown(evt);
         }
@@ -954,7 +1078,9 @@ td {
             noteKeyUp(evt);
         }
         function noteKeyUp(evt) {
-            if( evt.target.osc ) evt.target.osc.stop();
+            if( instrumentSustain ) return;
+            if( evt.target.osc ) endNote( evt.target.osc );
+            evt.target.osc2 = evt.target.osc;
             evt.target.osc = undefined;
             evt.target.classList.remove("key-active");
         }
@@ -977,11 +1103,6 @@ td {
             aKey.onmouseenter = noteKeyEnter;
             aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
             return aKey;
-        }
-
-        function printInstrument() {
-            //Start with the instrument node.
-            
         }
 
         function buildKeyboard() {
