@@ -278,6 +278,15 @@ td {
         var instrumentWave = "sine";
         var instrumentAttack = 0.10;
         var instrumentRelease = 0.15;
+        var currentInstrumentInput = "instrument";
+        var chordDelay = 0;
+        var logNotes = false;
+        const twoToThe12thRoot = 1.0594631;
+
+        //Effects
+        var chord = "none";
+
+        var chords = ["none", "major", "minor", "major7", "minor7", "major9", "minor9"];
 
         function addLine( text ) {
             let newElement = document.createElement("div");
@@ -461,6 +470,9 @@ td {
         }
 
         var commands = [
+            { "command":"lognotes", "handler":handleLogNotes, "parser":parseLogNotes, "helpcommand":"Log each note to the console." },
+            { "command":"chorddelay", "handler":handleChordDelay, "parser":parseChordDelay, "helpcommand":"chorddelay <time>", "helpdesc":"Time between any chorded input in seconds." },
+            { "command":"chord", "handler":handleChord, "parser":parseChord, "helpcommand":"do147", "helpdesc":"Play I and IV and VII when a key is pressed. toggle" },
             { "command":"sustain", "handler":handleSustain, "parser":parseSustain, "helpcommand":"sustain", "helpdesc":"Hits the sustain pedal. No notes turn off until you sustain again. Toggle." },
             { "command":"release", "handler":handleRelease, "parser":parseRelease, "helpcommand":"release <time>", "helpdesc":"Amount of time a note ramps from 1 to 0 in volume."},
             { "command":"attack", "handler":handleAttack, "parser":parseAttack, "helpcommand":"attack <time>", "helpdesc":"Amount of time a note ramps from 0 to 1 in volume." },
@@ -480,6 +492,48 @@ td {
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" }
         ];
 
+        function parseLogNotes( parseCommands, parseState ) {
+            return 1;
+        }
+
+        function handleLogNotes( parseCommands, parseState ) {
+            logNotes = !logNotes;
+        }
+
+        function parseChordDelay( parseCommands, parseState ) {
+            if( parseCommands.length < 2 ) {
+                setStatusMessage( "Command chordDelay <time> needs a time parameter." );
+                return -1;
+            }
+            if( Number(parseCommands[1]) == NaN ) {
+                setStatusMessage( "Time parameter must be a number." );
+                return -1;
+            }
+
+            parseCommands[1] = Number(parseCommands[1]);
+            return 2;
+        }
+
+        function handleChordDelay( parseCommands, parseState ) {
+            chordDelay = parseCommands[1];
+            return 2;
+        }
+
+        function parseChord( parseCommands, parseState ) {
+            if ( parseCommands.length < 2 ) {
+                setStatusMessage("chord command requires a cord name");
+                return -1;
+            }
+            if( !chords.includes( parseCommands[1] ) ) {
+                setStatusMessage("bad chord name");
+                return -1;
+            }
+            return 2;
+        }
+        function handleChord( parseCommands, parseState ) {
+            chord = parseCommands[1];
+            return 2;
+        }
         function parseSustain( parseCommands, parseState ) {
             return 1;
         }
@@ -558,10 +612,10 @@ td {
             processCommand( "create gain volume" );
             processCommand( "connect instrument volume output" );
             processCommand( "set volume gain 0.2" );
+            parseState.audioNodes["white"].start();
 
             return 1;
         }
-        
 
         function parseList( parseCommands, parseState ) {
             if( parseCommands.length < 2 ) {
@@ -578,7 +632,7 @@ td {
             "ConvolverNode":{},
             "BiquadFilterNode":{"parameters":["frequency","detune","Q","gain","type"],"type":["lowpass","highpass","bandpass","lowshelf","highshelf","peaking","notch","allpass"]},
             "IIRFilterNode":{},
-            "CompressorNode",{"parameters":["threshold", "knee", "ratio", "attack", "release"]}
+            "CompressorNode":{"parameters":["threshold", "knee", "ratio", "attack", "release"]}
         };
 
         function findParameters( node ) {
@@ -953,7 +1007,7 @@ td {
                     if( verboseApply ) console.log("Running " + parseIter[0]);
                     var tokensEaten = commandToRun.handler( parseIter, parseContext );
                     if( tokensEaten < 1 ) {
-                        setStatusMessageIfNotSet("Runtime error at " + parseCommands[ currentCommand ]);
+                        //setStatusMessageIfNotSet("Runtime error at " + parseCommands[ currentCommand ]);
                         return true;
                     }
                 }
@@ -1007,10 +1061,22 @@ td {
         }
 
         function resetParseState() {
+            notePool = [];
             globalParseState = structuredClone(rootParseState);
-            globalParseState.audioContext = new AudioContext();
+            let ac = new AudioContext();
+            globalParseState.audioContext = ac;
             globalParseState.audioNodes = {};
-            globalParseState.audioNodes[ "output" ] = globalParseState.audioContext.destination;
+            globalParseState.audioNodes[ "output" ] = ac.destination;
+            let buff = ac.createBuffer(1, 4 * ac.sampleRate, ac.sampleRate );
+            let buffer = buff.getChannelData(0);
+            let len = buffer.length;
+            for( i = 0; i < len; ++i ) {
+                buffer[i] = Math.random() * 2 - 1;
+            }
+            let whiteNoise = ac.createBufferSource();
+            whiteNoise.buffer = buff;
+            whiteNoise.loop = true;
+            globalParseState.audioNodes["white"] = whiteNoise;
         }
 
         var notePool = [];
@@ -1018,8 +1084,10 @@ td {
         function getNote() {
             var returnValue = notePool.pop();
             if( returnValue === undefined ) {
-                returnValue = { "osc":null, "release":0, "gain":globalParseState.audioContext.createGain() };
+                returnValue = { "osc":null, "release":0, "gain":globalParseState.audioContext.createGain(), "fromNow":0 };
             }
+            returnValue.release = 0;
+            returnValue.fromNow = 0;
             returnValue.gain
                 .gain.setValueAtTime(0,0);
             returnValue.osc = globalParseState.audioContext.createOscillator();
@@ -1033,22 +1101,59 @@ td {
             notePool.push( aNote );
         }
 
-        function startNote( hz, wave, attack, release ) {
+        function startMinor7( hz, wave, attack, release, outputNode, diffBetween ) {
+            var returnValue = [];
+            returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
+            returnValue.push( startNote( noteFromBase(hz, 3), wave, attack, release, outputNode,diffBetween ) );
+            returnValue.push( startNote( noteFromBase(hz, 5), wave, attack, release, outputNode,diffBetween * 2 ) );
+            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 2 ) );
+            return returnValue;
+        }
+        function startMajor7( hz, wave, attack, release, outputNode, diffBetween ) {
+            var returnValue = [];
+            returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
+            returnValue.push( startNote( noteFromBase(hz, 3), wave, attack, release, outputNode,diffBetween ) );
+            returnValue.push( startNote( noteFromBase(hz, 6), wave, attack, release, outputNode,diffBetween * 2 ) );
+            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 2 ) );
+            return returnValue;
+        }
+
+        function startMinor( hz, wave, attack, release, outputNode, diffBetween ) {
+            var returnValue = [];
+            returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
+            returnValue.push( startNote( noteFromBase(hz, 2), wave, attack, release, outputNode,diffBetween ) );
+            returnValue.push( startNote( noteFromBase(hz, 6), wave, attack, release, outputNode,diffBetween * 2 ) );
+            return returnValue;
+        }
+        function startMajor( hz, wave, attack, release, outputNode, diffBetween ) {
+            var returnValue = [];
+            returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
+            returnValue.push( startNote( noteFromBase(hz, 3), wave, attack, release, outputNode,diffBetween ) );
+            returnValue.push( startNote( noteFromBase(hz, 6), wave, attack, release, outputNode,diffBetween * 2 ) );
+            return returnValue;
+        }
+
+        function startNote( hz, wave, attack, release, outputNode, fromNow ) {
+            if( fromNow === undefined || Number(fromNow) == NaN ) fromNow = 0;
             var returnValue = getNote();
 
+            if( logNotes ) console.log( `Note: ${hz} ${fromNow}` );
+
             returnValue.osc
-                .frequency.setValueAtTime( hz, globalParseState.audioContext.currentTime );
+                .frequency.setValueAtTime( hz, globalParseState.audioContext.currentTime + fromNow );
             returnValue.osc
                 .type = wave;
             returnValue.osc
-                .start();
+                .start( globalParseState.audioContext.currentTime + fromNow );
+            
             returnValue.release = release;
+            returnValue.fromNow = fromNow;
             returnValue.gain
-                .gain.linearRampToValueAtTime( 1, globalParseState.audioContext.currentTime + attack );
+                .gain.linearRampToValueAtTime( 1, globalParseState.audioContext.currentTime + fromNow + attack );
 
             returnValue.osc
                 .connect( returnValue.gain )
-                .connect( globalParseState.audioNodes[ "instrument" ] );
+                .connect( globalParseState.audioNodes[ outputNode ] );
 
             return returnValue;
         }
@@ -1056,8 +1161,8 @@ td {
         function endNote( aNote ) {
             if( !aNote ) return;
             if( aNote.gain ) {
-                aNote.gain.gain.linearRampToValueAtTime(0,globalParseState.audioContext.currentTime + aNote.release );
-                setTimeout( returnNote, aNote.release * 1150, aNote );
+                aNote.gain.gain.linearRampToValueAtTime(0,globalParseState.audioContext.currentTime + aNote.release + aNote.fromNow );
+                setTimeout( returnNote, (aNote.release + aNote.fromNow) * 1150, aNote );
             } else {
                 console.log("Gain cut.");
                 returnNote( aNote );
@@ -1066,8 +1171,24 @@ td {
 
         function noteKeyDown(evt) {
             let key = evt.target;
-            if( key.osc ) return;
-            key.osc = startNote( key.hz, instrumentWave, instrumentAttack, instrumentRelease );
+            if( key.osc.length > 0 ) return;
+            switch( chord ) {
+                case "none":
+                    key.osc.push( startNote( key.hz, instrumentWave, instrumentAttack, instrumentRelease, currentInstrumentInput ) );
+                    break;
+                case "major":
+                    key.osc = startMajor( key.hz, instrumentWave, instrumentAttack, instrumentRelease, currentInstrumentInput, chordDelay );
+                    break;
+                case "minor":
+                    key.osc = startMinor( key.hz, instrumentWave, instrumentAttack, instrumentRelease, currentInstrumentInput, chordDelay );
+                    break;
+                case "major7":
+                    key.osc = startMajor7( key.hz, instrumentWave, instrumentAttack, instrumentRelease, currentInstrumentInput, chordDelay );
+                    break;
+                case "minor7":
+                    key.osc = startMinor7( key.hz, instrumentWave, instrumentAttack, instrumentRelease, currentInstrumentInput, chordDelay );
+                    break;
+            }
             key.classList.add("key-active");
         }
 
@@ -1079,19 +1200,21 @@ td {
         }
         function noteKeyUp(evt) {
             if( instrumentSustain ) return;
-            if( evt.target.osc ) endNote( evt.target.osc );
-            evt.target.osc2 = evt.target.osc;
-            evt.target.osc = undefined;
+            let currentNote;
+            while( currentNote = evt.target.osc.pop() ) endNote( currentNote );
             evt.target.classList.remove("key-active");
         }
 
         function noteFromBase( baseHz, noteInScale ) {
-            const twoToThe12thRoot = 1.0594631;
             let outputHz = baseHz;
             for( let i = 0; i < noteInScale; ++i ) {
                 outputHz *= twoToThe12thRoot;
             }
             return outputHz;
+        }
+
+        function preventDefault(evt) {
+            evt.preventDefault();
         }
 
         function keyDiv( blackWhiteOrEmpty ) {
@@ -1101,7 +1224,8 @@ td {
             aKey.onmouseup = noteKeyUp;
             aKey.onmouseleave = noteKeyLeave;
             aKey.onmouseenter = noteKeyEnter;
-            aKey.addEventListener("dragstart",(evt)=>{event.preventDefault();});
+            aKey.addEventListener("dragstart",preventDefault);
+            aKey.osc = [];
             return aKey;
         }
 
@@ -1120,7 +1244,7 @@ td {
                 aKey = keyDiv( "key-white" );
                 aKey.keyName = noteKeys[i%numNoteKeys];
                 aKey.hz = noteFromBase( startHz, whichNote );
-                aKey.keyNum = whichNote;
+                aKey.osc = [];
                 ++whichNote;
                 whiteKeysDiv.appendChild( aKey );
                 aKey = document.createElement("div");
