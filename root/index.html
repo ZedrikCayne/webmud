@@ -262,8 +262,18 @@ a:active {
             }
         });
 
-        function setStatusMessage( text ) {
+        let statusTimeout = 5000;
+        let statusTimeoutEvent = undefined;
+
+        function setStatusMessage( text, slowDown ) {
+            if( statusTimeoutEvent ) {
+                clearTimeout(statusTimeoutEvent);
+                statusTimeoutEvent = undefined;
+            }
+            if( slowDown ) statusTimeout *= 2; else statusTimeout = 5000;
+            if( statusTimeout > 600000 ) statusTimeout = 600000;
             lebar.innerText = text;
+            statusTimeoutEvent = setTimeout( sendText, statusTimeout, "/status" );
         }
 
         let scrollbackTimeout = 5000;
@@ -347,7 +357,7 @@ a:active {
         }
 
         function openEvent( event ) {
-            setStatusMessage("webmud connected.");
+            setStatusMessage("webmud connected.",true);
             if( oldTextToSend != null ) sendText( oldTextToSend );
             oldTextToSend = null;
         }
@@ -447,12 +457,12 @@ a:active {
             try {
                 globalWebsocket.send( theText + "\r\n" );
             } catch ( ex ) {
-                setStatusMessage("Websocket failed to send.");
+                setStatusMessage("Websocket failed to send.", true);
             }
         }
 
         function closeWebsocket() {
-            setStatusMessage("Connection to webmud lost. Send text to reconnect.");
+            setStatusMessage("Connection to webmud lost. Attempting reconnect.", true);
             if( globalWebsocket !== null ) {
                 globalWebsocket.close();
                 globalWebsocket = null;
