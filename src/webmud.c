@@ -536,8 +536,9 @@ bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
 
 bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
-    CS_serverSetReplyCookie( reply, "session", sessionCookie, true );
-    return CS_serverPushFile( "root/index.html", info, 0, reply );
+    CS_serverSetReplyCookie( reply, "session", sessionCookie, true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    //return CS_serverPushFile( "root/index.html", info, 0, reply );
+    return redirectTo( info, "/" );
 }
 
 bool googleLogin( struct CS_ClientInfo *info ) {
@@ -613,7 +614,7 @@ bool logout( struct CS_ClientInfo *info ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
     char *tempUuid4 = (char*)CS_uuid4StringTemp();
     if( tempUuid4 ) *tempUuid4 = 'L';
-    CS_serverSetReplyCookie( reply, "session", tempUuid4, true );
+    CS_serverSetReplyCookie( reply, "session", tempUuid4, true, CS_REPLY_COOKIE_SAMESITE_LAX );
     return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
 }
 
