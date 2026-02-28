@@ -706,4 +706,5 @@ bool SendStatus( struct UserState *userState, bool lockUserState ) {
     }
 
     if( lockUserState ) CS_mutexUnlock( userState->mutex );
+    return false;
 }
