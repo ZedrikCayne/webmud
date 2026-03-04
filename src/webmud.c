@@ -14,6 +14,7 @@
 #include <crankshaft/util.h>
 #include <crankshaft/storage.h>
 #include <crankshaft/base64.h>
+#include <crankshaft/thread.h>
 
 #include "webmud.h"
 
@@ -619,6 +620,70 @@ bool logout( struct CS_ClientInfo *info ) {
 }
 
 bool loginPageReturn( struct CS_ClientInfo *info ) {
-    CS_serverPushFile("root/loginpage.html", info, 0, NULL );
+    return CS_serverPushFile("root/loginpage.html", info, 0, NULL );
 }
 
+struct forwardContext {
+    struct CS_Thread *thread;
+    struct CS_ClientInfo *info;
+    struct CS_RequestReply *reply;
+    bool clientClosed;
+    bool serverClosed;
+}; 
+bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
+    struct forwardContext *fwd = (struct forwardContext *)context;
+
+    switch( threadState ) {
+    case CS_THREAD_ERROR:
+        break;
+    case CS_THREAD_INIT:
+        break;
+    case CS_THREAD_START:
+    case CS_THREAD_RUNNING:
+        if( fwd->serverClosed ) return true;
+        {
+            int bytesInFromRemote = CS_httpFillReplyFromRemote( fwd->reply );
+            if( bytesInFromRemote < 0 ) {
+                return true;
+            }
+            int bytesToServer = CS_serverWriteOutputBuffer( fwd->info );
+            if( bytesToServer < 0 ) {
+                return true;
+            }
+        }
+
+        break;
+    case CS_THREAD_STOP:
+        break;
+    case CS_THREAD_STOPPED:
+        break;
+    }
+    return false;
+}
+
+bool forward( struct CS_ClientInfo *info ) {
+    struct forwardContext *fullContext = CS_allocZero( sizeof(struct forwardContext) );
+    if( fullContext == NULL ) {
+        return CS_serverReplyError( info, CS_RESPONSE_500, "OOM forwarding" );
+    }
+    char *tbuff = CS_tempBuffSnprintf( 2048, "http://127.0.0.1%s", info->requestInfo.uri );
+
+    struct CS_RequestReply *reply;
+
+    //Fire off the request to where we are forwarding it to.
+    reply = CS_httpStartRequest( info->requestInfo.requestMethodEnum,
+            tbuff,
+            info->requestInfo.headers, info->requestInfo.numHeaders, 
+            info->requestInfo.parameters, info->requestInfo.numParameters,
+            info->requestInfo.formParameters, info->requestInfo.numFormParameters,
+            NULL, 0, NULL );
+
+
+    //This thread is the one that sucks in from the request, and shoves directly out to the remote.
+    //
+    //The other thread will eat from the remote and shove out to the request source.
+
+    
+
+    return false;
+}
