@@ -15,6 +15,7 @@
 #include <crankshaft/storage.h>
 #include <crankshaft/base64.h>
 #include <crankshaft/thread.h>
+#include <crankshaft/mutex.h>
 
 #include "webmud.h"
 
@@ -624,51 +625,57 @@ bool loginPageReturn( struct CS_ClientInfo *info ) {
 }
 
 struct forwardContext {
+    struct CS_Mutex *mutex;
     struct CS_Thread *thread;
     struct CS_ClientInfo *info;
     struct CS_RequestReply *reply;
     bool clientClosed;
     bool serverClosed;
 }; 
+
 bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
     struct forwardContext *fwd = (struct forwardContext *)context;
 
     switch( threadState ) {
-    case CS_THREAD_ERROR:
-        break;
-    case CS_THREAD_INIT:
-        break;
     case CS_THREAD_START:
+        CS_LOG_TRACE("Thread START");
+        CS_mutexLock( fwd->mutex );
     case CS_THREAD_RUNNING:
         if( fwd->serverClosed ) return true;
         {
             int bytesInFromRemote = CS_httpFillReplyFromRemote( fwd->reply );
-            if( bytesInFromRemote < 0 ) {
+            if( bytesInFromRemote <= 0 ) {
                 return true;
             }
-            int bytesToServer = CS_serverWriteOutputBuffer( fwd->info );
-            if( bytesToServer < 0 ) {
-                return true;
+            while( CS_PP_dataSize(fwd->reply->buffer) > 0 ) {
+                CS_PP_moveBuffer( fwd->reply->buffer, fwd->info->output );
+                int bytesToServer = CS_serverWriteOutputBuffer( fwd->info );
+                if( bytesToServer <= 0 ) {
+                    return true;
+                }
             }
         }
 
         break;
     case CS_THREAD_STOP:
-        break;
-    case CS_THREAD_STOPPED:
+        CS_LOG_TRACE("Thread STOP");
+        CS_mutexUnlock( fwd->mutex );
         break;
     }
     return false;
 }
 
 bool forward( struct CS_ClientInfo *info ) {
+    struct CS_Thread *pRemoteThread = NULL;
+    struct CS_RequestReply *reply = NULL;
     struct forwardContext *fullContext = CS_allocZero( sizeof(struct forwardContext) );
+    CS_LOG_INFO("FORWARD");
     if( fullContext == NULL ) {
-        return CS_serverReplyError( info, CS_RESPONSE_500, "OOM forwarding" );
+        CS_serverReplyError( info, CS_RESPONSE_500, "OOM forwarding" );
+        goto CLEANUP;
     }
-    char *tbuff = CS_tempBuffSnprintf( 2048, "http://127.0.0.1%s", info->requestInfo.uri );
-
-    struct CS_RequestReply *reply;
+    char *tbuff = CS_tempBuffSnprintf( 2048, "http://127.0.0.1:8080%s", info->requestInfo.uri );
+    CS_LOG_INFO("connect to %s", tbuff );
 
     //Fire off the request to where we are forwarding it to.
     reply = CS_httpStartRequest( info->requestInfo.requestMethodEnum,
@@ -678,12 +685,35 @@ bool forward( struct CS_ClientInfo *info ) {
             info->requestInfo.formParameters, info->requestInfo.numFormParameters,
             NULL, 0, NULL );
 
+    if( reply == NULL ) {
+        CS_serverReplyError( info, CS_RESPONSE_403, "Remote not responding" );
+        goto CLEANUP;
+    }
 
-    //This thread is the one that sucks in from the request, and shoves directly out to the remote.
+    fullContext->mutex = CS_mutexTake();
+    fullContext->reply = reply;
+    fullContext->info = info;
+
+    pRemoteThread = CS_threadStart("Remote", fullContext, forwardThread );
+
+    //This thread is the one that sucks in from the request,
+    //and shoves directly out to the remote.
     //
     //The other thread will eat from the remote and shove out to the request source.
+    do {
+        if( CS_serverFillIncomingBuffer( info ) < 0 ) break;
+        if( CS_httpPushBufferToRemote( reply, info->buffer ) < 0 ) break;
+    } while(true);
 
-    
+    CS_mutexLock( fullContext->mutex );
+    CS_mutexUnlock( fullContext->mutex );
+    CS_mutexReturn( fullContext->mutex );
+    CS_threadReturn( pRemoteThread );
 
-    return false;
+CLEANUP:
+    if( reply ) CS_httpCloseRequest( reply );
+    if( fullContext ) CS_free( fullContext );
+    fullContext = NULL;
+    return true;
+
 }
