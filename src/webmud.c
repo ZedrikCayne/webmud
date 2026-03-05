@@ -669,13 +669,12 @@ bool forward( struct CS_ClientInfo *info ) {
     struct CS_Thread *pRemoteThread = NULL;
     struct CS_RequestReply *reply = NULL;
     struct forwardContext *fullContext = CS_allocZero( sizeof(struct forwardContext) );
-    CS_LOG_INFO("FORWARD");
+
     if( fullContext == NULL ) {
         CS_serverReplyError( info, CS_RESPONSE_500, "OOM forwarding" );
         goto CLEANUP;
     }
     char *tbuff = CS_tempBuffSnprintf( 2048, "http://127.0.0.1:8080%s", info->requestInfo.uri );
-    CS_LOG_INFO("connect to %s", tbuff );
 
     //Fire off the request to where we are forwarding it to.
     reply = CS_httpStartRequest( info->requestInfo.requestMethodEnum,
