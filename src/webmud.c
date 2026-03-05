@@ -19,6 +19,9 @@
 
 #include "webmud.h"
 
+
+#define SESSION_COOKIE_NAME "webmud_session"
+
 static const struct CS_Storage *longTermStorage = NULL;
 static struct CS_HashTable *cheapSessions = NULL;
 static struct CS_HashTable *googleIdToSessionId = NULL;
@@ -49,14 +52,14 @@ void killApplication() {
 }
 
 bool cookieFilter( struct CS_ClientInfo *info ) {
-    const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
+    const char *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
     if( cookieValue != NULL ) {
         const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         if( currentSession != CS_HASHTABLE_ERROR && currentSession != NULL ) {
             return false;
         }
     }
-    if( appAutoLogin ) autoLoginUtil(info);
+    if( appAutoLogin ) return autoLoginUtil(info);
     return loginPageReturn(info);
 }
 
@@ -488,7 +491,7 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
 
 bool websocket( struct CS_ClientInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
-        const char *cookieValue = CS_serverGetRequestCookie( info, "session" );
+        const char *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
         const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
@@ -538,9 +541,11 @@ bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
 
 bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
-    CS_serverSetReplyCookie( reply, "session", sessionCookie, true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, sessionCookie, true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    CS_serverSetReplyHeader( reply, "Location", "/" );
+    CS_serverDoReply( info, reply );
     //return CS_serverPushFile( "root/index.html", info, 0, reply );
-    return redirectTo( info, "/" );
+    return true;
 }
 
 bool googleLogin( struct CS_ClientInfo *info ) {
@@ -616,7 +621,7 @@ bool logout( struct CS_ClientInfo *info ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
     char *tempUuid4 = (char*)CS_uuid4StringTemp();
     if( tempUuid4 ) *tempUuid4 = 'L';
-    CS_serverSetReplyCookie( reply, "session", tempUuid4, true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, tempUuid4, true, CS_REPLY_COOKIE_SAMESITE_LAX );
     return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
 }
 
@@ -638,7 +643,6 @@ bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
 
     switch( threadState ) {
     case CS_THREAD_START:
-        CS_LOG_TRACE("Thread START");
         CS_mutexLock( fwd->mutex );
     case CS_THREAD_RUNNING:
         if( fwd->serverClosed ) return true;
@@ -658,7 +662,6 @@ bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
 
         break;
     case CS_THREAD_STOP:
-        CS_LOG_TRACE("Thread STOP");
         CS_mutexUnlock( fwd->mutex );
         break;
     }
@@ -714,5 +717,4 @@ CLEANUP:
     if( fullContext ) CS_free( fullContext );
     fullContext = NULL;
     return true;
-
 }
