@@ -1106,7 +1106,7 @@ td {
             returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
             returnValue.push( startNote( noteFromBase(hz, 3), wave, attack, release, outputNode,diffBetween ) );
             returnValue.push( startNote( noteFromBase(hz, 5), wave, attack, release, outputNode,diffBetween * 2 ) );
-            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 2 ) );
+            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 3 ) );
             return returnValue;
         }
         function startMajor7( hz, wave, attack, release, outputNode, diffBetween ) {
@@ -1114,7 +1114,7 @@ td {
             returnValue.push( startNote( hz, wave, attack, release, outputNode, 0 ) );
             returnValue.push( startNote( noteFromBase(hz, 3), wave, attack, release, outputNode,diffBetween ) );
             returnValue.push( startNote( noteFromBase(hz, 6), wave, attack, release, outputNode,diffBetween * 2 ) );
-            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 2 ) );
+            returnValue.push( startNote( noteFromBase(hz, 9), wave, attack, release, outputNode,diffBetween * 3 ) );
             return returnValue;
         }
 

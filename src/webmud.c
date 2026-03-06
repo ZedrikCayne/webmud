@@ -703,8 +703,10 @@ bool forward( struct CS_ClientInfo *info ) {
     //
     //The other thread will eat from the remote and shove out to the request source.
     do {
-        if( CS_serverFillIncomingBuffer( info ) < 0 ) break;
-        if( CS_httpPushBufferToRemote( reply, info->buffer ) < 0 ) break;
+        int incoming = CS_serverFillIncomingBuffer( info );
+        if( incoming < 0 ) break;
+        int outgoing = CS_httpPushBufferToRemote( reply, info->buffer );
+        if( outgoing < 0 ) break;
     } while(true);
 
     CS_mutexLock( fullContext->mutex );
