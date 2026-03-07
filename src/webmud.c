@@ -540,7 +540,7 @@ bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
 }
 
 bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
-    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
+    struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
     CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, sessionCookie, true, CS_REPLY_COOKIE_SAMESITE_LAX );
     CS_serverSetReplyHeader( reply, "Location", "/" );
     CS_serverDoReply( info, reply );

@@ -164,6 +164,7 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX,   0, "/colorrace", forward},
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/googlee9", CS_serverFileServer},
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_FILTER,   0, "", cookieFilter},
     { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX,   0, "/ws", websocket},
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
