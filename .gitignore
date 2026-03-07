@@ -3,3 +3,4 @@ secrets/
 logs/
 *.swp
 .clangd
+root/googlee9*
