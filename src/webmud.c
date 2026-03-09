@@ -647,10 +647,13 @@ bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
     case CS_THREAD_RUNNING:
         if( fwd->serverClosed ) return true;
         {
+            //CS_LOG_TRACE("T: Fill from Remote.");
             int bytesInFromRemote = CS_httpFillReplyFromRemote( fwd->reply );
             if( bytesInFromRemote <= 0 ) {
+                CS_serverKillClientSocket( fwd->info );
                 return true;
             }
+            //CS_LOG_TRACE("T: Push To Server");
             while( CS_PP_dataSize(fwd->reply->buffer) > 0 ) {
                 CS_PP_moveBuffer( fwd->reply->buffer, fwd->info->output );
                 int bytesToServer = CS_serverWriteOutputBuffer( fwd->info );
@@ -662,6 +665,7 @@ bool forwardThread(struct CS_Thread *myThread, int threadState, void *context) {
 
         break;
     case CS_THREAD_STOP:
+        //CS_LOG_TRACE("T: Unlocking the tread mutex.");
         CS_mutexUnlock( fwd->mutex );
         break;
     }
@@ -703,12 +707,15 @@ bool forward( struct CS_ClientInfo *info ) {
     //
     //The other thread will eat from the remote and shove out to the request source.
     do {
+        //CS_LOG_TRACE("M: Fill from Server");
         int incoming = CS_serverFillIncomingBuffer( info );
-        if( incoming < 0 ) break;
+        if( incoming <= 0 ) break;
+        //CS_LOG_TRACE("M: Push to Remote");
         int outgoing = CS_httpPushBufferToRemote( reply, info->buffer );
-        if( outgoing < 0 ) break;
+        if( outgoing <= 0 ) break;
     } while(true);
 
+    //CS_LOG_TRACE("M: Waiting on thread mutex.");
     CS_mutexLock( fullContext->mutex );
     CS_mutexUnlock( fullContext->mutex );
     CS_mutexReturn( fullContext->mutex );
