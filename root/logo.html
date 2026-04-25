@@ -451,6 +451,35 @@ td {
             return {"x":Math.floor(Number(x)),"y":Math.floor(Number(turtleContext.height)-Number(y))};
         }
 
+        function applyQuarterCircle( x, y, hOrV, turtleContext ) {
+            lastOp = turtleContext.lastpathoperation;
+            let oldPos = xyFromContext( turtleContext.x, turtleContext.y, turtleContext );
+            if( lastOp == "M" ) {
+                turtleContext.accumulator += "M" + oldPos.x + " " + oldPos.y;
+            }
+            let newX = turtleContext.x + x;
+            let newY = turtleContext.y + y;
+            diffX = x;
+            diffY = y;
+            let halfX = Math.floor( diffX * 0.55 );
+            let halfY = Math.floor( diffY * 0.55 );
+            let endp = xyFromContext( newX, newY, turtleContext );
+            let c1 = {};
+            let c2 = {};
+            if( hOrV == "H" || hOrV == "h" ) {
+                c1 = xyFromContext( turtleContext.x + halfX, turtleContext.y, turtleContext );
+                c2 = xyFromContext( newX, newY - halfY, turtleContext );
+            } else {
+                c1 = xyFromContext( turtleContext.x, turtleContext.y + halfY, turtleContext );
+                c2 = xyFromContext( newX - halfX, newY, turtleContext );
+            }
+                turtleContext.accumulator += "C" + c1.x + " " + c1.y + "," + c2.x + " " + c2.y + "," + endp.x + " " + endp.y;
+            turtleContext.lastpathoperation = "C";
+            turtleContext.x = newX;
+            turtleContext.y = newY;
+            return true;
+        }
+
         function applyPathOp( op, x, y, turtleContext ) {
             lastOp = turtleContext.lastpathoperation;
             turtleContext.lastpathoperation = op;
@@ -476,6 +505,37 @@ td {
                 applyPathOp( "M", x, y, turtleContext );
             }
             applyTurtle( turtleContext );
+        }
+
+        function parseQuarterCircle( turtleCommand, turtleContext ) {
+            if( turtleCommand.length < 4 ) {
+                setStatusMessage("Command is 'qc <x> <y> <H|V>'");
+                return -1;
+            }
+            let theX = parseNumberOrVariable(turtleCommand[1]);
+            if( theX == NaN ) {
+                setStatusMessage("qc <x> <y> <H|V> X needs to be a number");
+                return -1;
+            }
+            turtleCommand[1] = theX;
+            let theY = parseNumberOrVariable(turtleCommand[2]);
+            if( theY == NaN ) {
+                setStatusMessage("qc <x> <y> <H|V> Y needs to be a number");
+                return -1;
+            }
+            turtleCommand[2] = theY;
+            if( turtleCommand[3] != 'H' && turtleCommand[3] != 'h' && 
+                turtleCommand[3] != 'V' && turtleCommand[3] != 'v' ) {
+                setStatusMessage("qc <x> <y> <H|V> third parameter must be H or V");
+                return -1;
+            }
+            return 4;
+        }
+
+        function handleQuarterCircle( turtleCommand, turtleContext ) {
+            applyQuarterCircle( handleNumberOrVariable( turtleCommand[1], turtleContext ), handleNumberOrVariable( turtleCommand[2], turtleContext ), turtleCommand[3], turtleContext );
+            applyTurtle( turtleContext );
+            return 4;
         }
 
         function parseMoveTo( turtleCommand, turtleContext ) {
@@ -812,6 +872,30 @@ td {
             return turtleCommand.length;
         }
 
+        function parseIter( turtleCommand, turtleState ) {
+            if( turtleCommand.length < 3 ) {
+                setStatusMessage( "Command is iterate <number> <variableName>" );
+                return -1;
+            }
+            var repeats = parseNumberOrVariable(turtleCommand[1]);
+            if( repeats == NaN ) {
+                setStatusMessage( "Command needs a number of times to repeat." );
+                return -1;
+            }
+            turtleCommand[1] = repeats;
+            return 2;
+        }
+
+        function handleIter( turtleCommand, turtleState ) {
+            let repeats = handleNumberOrVariable( turtleCommand[1], turtleState );
+            for( let rep = 0; rep < repeats; ++rep ) {
+                let repeatMe = turtleCommand.slice(3);
+                setVariable( turtleCommand[2], rep, turtleState );
+                applyCommands( repeatMe, turtleState );
+            }
+            return turtleCommand.length;
+        }
+
         function cancelAccumulation() {
             commandAccumulator = null;
             commandAccumulatorName = null;
@@ -890,6 +974,7 @@ td {
             { "command":"fill", "handler":handleFill, "parser": parseFill, "helpcommand":"fill <color>", "helpdesc":"Sets the fill color. Specified in web colors by name or using the various # values." },
             { "command":"color", "handler":handleColor, "parser": parseColor, "helpcommand":"color <color>", "helpdesc":"Change the 'stroke' or line color of the turtle. Will start a new path." },
             { "command":"repeat", "handler":handleRepeat, "parser": parseRepeat, "helpcommand":"repeate <num>", "helpdesc":"Repeats whatever is on the rest of the line <num> times. To make a square for example, you would 'repeat 4 forward 20 right 90'" },
+            { "command":"iter", "handler":handleIter, "parser": parseIter, "helpcommand":"iter <num> <variablename>", "helpdesc":"Repeats whatever is on the rest of the line <num> setting the value of variablename to the current iteration. For example iter 20 therot forward 10 right :therot will make a gnetly curving line" },
             { "command":"to", "handler":handleTo, "parser":parseTo, "helpcommand":"to <name> <:var1> <:var2>", "helpdesc":"Create a new command called <name>. All commands entered until 'end' will be part of the new command. Variables are defined as :varname and will be pulled off the commands in order. For example 'to square :width :height' will define a command called square that will take two parameters" },
             { "command":"end", "handler":handleEnd, "parser":parseEnd, "helpcommand":"end", "helpdesc":"Used to end a command you started specifying with 'to'" },
             { "command":"path", "handler":handlePath, "parser":parsePath, "helpcommand":"path", "helpdesc":"Creates a new path. Internally this creates a 'svg' with paths. So if you need separate filled sections, you are going to want to create multiple paths." },
@@ -913,7 +998,8 @@ td {
             { "command":"save", "handler":handleSave, "parser":parseSave, "helpcommand":"save <filename>", "helpdesc":"Will download your art to the filename you provided." },
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" },
             { "command":"rand", "handler":handleRand, "parser":parseRand, "helpcommand":"rand", "helpdesc":"Overwites the current math value with a random number." },
-            { "command":"export", "handler":handleExport, "parser":parseExport, "helpcommand":"export <filename>", "helpdesc":"Exports your custom commands to the filename you specify for download." }
+            { "command":"export", "handler":handleExport, "parser":parseExport, "helpcommand":"export <filename>", "helpdesc":"Exports your custom commands to the filename you specify for download." },
+            { "command":"qc", "handler":handleQuarterCircle, "parser":parseQuarterCircle, "helpcommand":"qc <x> <y> [H|V]", "helpdesc":"Draws a quarter circle from current point to x,y starting horizontally or vertically." }
         ];
 
         function fillHelp() {
