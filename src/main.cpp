@@ -161,7 +161,6 @@ struct CS_Route serverRoutes[] = {
     { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_EXACT,    0, "/googlelogin", googleLogin},
     { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_PREFIX,   0, "/anonymous", anonymousLogin},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/logout", logout},
-    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX,   0, "/colorrace", forward},
     { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
     { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/googlee9", CS_serverFileServer},

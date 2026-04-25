@@ -31,8 +31,6 @@ bool logout( struct CS_ClientInfo *info );
 bool anonymousLogin( struct CS_ClientInfo *info );
 //Add or reset user
 bool AddOrResetUser( const char *name );
-//Forward a connection
-bool forward( struct CS_ClientInfo *info );
 
 #ifdef __cplusplus
 }
