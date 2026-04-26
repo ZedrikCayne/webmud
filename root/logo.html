@@ -451,7 +451,7 @@ td {
             return {"x":Math.floor(Number(x)),"y":Math.floor(Number(turtleContext.height)-Number(y))};
         }
 
-        function applyQuarterCircle( x, y, hOrV, turtleContext ) {
+        function applyQuarterCircle( x, y, v, turtleContext ) {
             lastOp = turtleContext.lastpathoperation;
             let oldPos = xyFromContext( turtleContext.x, turtleContext.y, turtleContext );
             if( lastOp == "M" ) {
@@ -466,14 +466,14 @@ td {
             let endp = xyFromContext( newX, newY, turtleContext );
             let c1 = {};
             let c2 = {};
-            if( hOrV == "H" || hOrV == "h" ) {
+            if( v == 0 ) {
                 c1 = xyFromContext( turtleContext.x + halfX, turtleContext.y, turtleContext );
                 c2 = xyFromContext( newX, newY - halfY, turtleContext );
             } else {
                 c1 = xyFromContext( turtleContext.x, turtleContext.y + halfY, turtleContext );
                 c2 = xyFromContext( newX - halfX, newY, turtleContext );
             }
-                turtleContext.accumulator += "C" + c1.x + " " + c1.y + "," + c2.x + " " + c2.y + "," + endp.x + " " + endp.y;
+            turtleContext.accumulator += "C" + c1.x + " " + c1.y + "," + c2.x + " " + c2.y + "," + endp.x + " " + endp.y;
             turtleContext.lastpathoperation = "C";
             turtleContext.x = newX;
             turtleContext.y = newY;
@@ -524,16 +524,17 @@ td {
                 return -1;
             }
             turtleCommand[2] = theY;
-            if( turtleCommand[3] != 'H' && turtleCommand[3] != 'h' && 
-                turtleCommand[3] != 'V' && turtleCommand[3] != 'v' ) {
-                setStatusMessage("qc <x> <y> <H|V> third parameter must be H or V");
+            let vertical = parseNumberOrVariable(turtleCommand[3]);
+            if( vertical == NaN ) {
+                setStatusMessage("qc <x> <y> <0|1> third parameter must be 0 or 1");
                 return -1;
             }
+            turtleCommand[3] = vertical;
             return 4;
         }
 
         function handleQuarterCircle( turtleCommand, turtleContext ) {
-            applyQuarterCircle( handleNumberOrVariable( turtleCommand[1], turtleContext ), handleNumberOrVariable( turtleCommand[2], turtleContext ), turtleCommand[3], turtleContext );
+            applyQuarterCircle( handleNumberOrVariable( turtleCommand[1], turtleContext ), handleNumberOrVariable( turtleCommand[2], turtleContext ), handleNumberOrVariable( turtleCommand[3] ), turtleContext );
             applyTurtle( turtleContext );
             return 4;
         }
@@ -989,6 +990,7 @@ td {
             { "command":"*", "handler":handleMultiply, "parser":parseMultiply, "helpcaommand":"* <numberorvariable>", "helpdesc":"Multiplication." },
             { "command":"/", "handler":handleDivide, "parser":parseDivide, "helpcommand":"/ <numberorvariable>", "helpdesc":"Division" },
             { "command":"=", "handler":handleAssign, "parser":parseAssign, "helpcommand":"= <numberorvariable>", "helpdesc":"Assignment" },
+            { "command":"tozero", "handler":handleToZero, "parser":parseToZero, "helpcommand":"tozero <numberorvariable>", "helpdesc":"Absolute subtract. Moves the accumulator towards zero by number" },
             { "command":"sin", "handler":handleSin, "parser":parseSin, "helpcommand":"sin", "helpdesc":"Put the sin value of the math done previous to it in the result. So ':sinangle = :angle / 360 * :PI sin' will take an angle in degrees, convert it to radians, and then take the sin value." },
             { "command":"cos", "handler":handleCos, "parser":parseCos, "helpcommand":"cos", "helpdesc":"Put the sin value of the math done previous to it in the result. So ':cosangle = :angle / 360 * :PI cos' will take an angle in degrees, convert it to radians, and then take the cos value." },
             { "command":"tan", "handler":handleTan, "parser":parseTan, "helpcommand":"cos", "helpdesc":"As per sin and cos, will put the tan of the accumulated math into the result." },
@@ -999,7 +1001,7 @@ td {
             { "command":"help", "handler":handleHelp, "parser":parseHelp, "helpcommand":"help", "helpdesc":"Brings up this help!" },
             { "command":"rand", "handler":handleRand, "parser":parseRand, "helpcommand":"rand", "helpdesc":"Overwites the current math value with a random number." },
             { "command":"export", "handler":handleExport, "parser":parseExport, "helpcommand":"export <filename>", "helpdesc":"Exports your custom commands to the filename you specify for download." },
-            { "command":"qc", "handler":handleQuarterCircle, "parser":parseQuarterCircle, "helpcommand":"qc <x> <y> [H|V]", "helpdesc":"Draws a quarter circle from current point to x,y starting horizontally or vertically." }
+            { "command":"qc", "handler":handleQuarterCircle, "parser":parseQuarterCircle, "helpcommand":"qc <x> <y> [0|1]", "helpdesc":"Draws a quarter circle from current point to x,y starting horizontally (0) or vertically (1)." }
         ];
 
         function fillHelp() {
@@ -1376,6 +1378,25 @@ td {
                 return -1;
             }
             turtleState.currentMath -= outputVal;
+            return 2;
+        }
+        function parseToZero( turtleCommand, turtleState ) {
+            if( parseNumberOrVariable( turtleCommand[1] ) == NaN ) {
+                setStatusMessage( "tozero needs to be followed by a variable or number" );
+                return -1;
+            }
+            return 2;
+        }
+        function handleToZero( turtleCommand, turtleState ) {
+            let outputVal = handleNumberOrVariable( turtleCommand[1], turtleState );
+            if( outputVal == NaN ) {
+                return -1;
+            }
+            if( turtleState.currentMath > 0 ) {
+                turtleState.currentMath -= outputVal;
+            } else {
+                turtleState.currentMath += outputVal;
+            }
             return 2;
         }
         function parseMultiply( turtleCommand, turtleState ) {
