@@ -152,22 +152,30 @@ void hupOnMainThread() {
     CS_LOG_TRACE("HUP");
     GotHup = false;
 }
-
+static const struct CS_String logo = CS_STRING("/logo.html");
+static const struct CS_String tos = CS_STRING("/terms_of_service.html");
+static const struct CS_String privacy = CS_STRING("/privacy_policy.html");
+static const struct CS_String googlogin = CS_STRING("/googlelogin");
+static const struct CS_String anonymous = CS_STRING("/anonymous");
+static const struct CS_String logoutRoute = CS_STRING("/logout");
+static const struct CS_String publicRoute = CS_STRING("/public");
+static const struct CS_String gfilePrefix = CS_STRING("/googlee9");
+static const struct CS_String ws = CS_STRING("/ws");
 struct CS_Route serverRoutes[] = {
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/logo.html", CS_serverFileServer},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/terms_of_service.html", CS_serverFileServer},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/privacy_policy.html", CS_serverFileServer},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/googlelogin", googleLogin},
-    { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_EXACT,    0, "/googlelogin", googleLogin},
-    { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_PREFIX,   0, "/anonymous", anonymousLogin},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    0, "/logout", logout},
-    { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/public", CS_serverFileServer},
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   0, "/googlee9", CS_serverFileServer},
-    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_FILTER,   0, "", cookieFilter},
-    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX,   0, "/ws", websocket},
-    { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
-    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, 0, "", CS_serverFileServer },
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    &logo, CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    &tos, CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    &privacy, CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    &googlogin, googleLogin},
+    { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_EXACT,    &googlogin, googleLogin},
+    { CS_HTTP_METHOD_POST, CS_ROUTE_TYPE_PREFIX,   &anonymous, anonymousLogin},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_EXACT,    &logoutRoute, logout},
+    { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_PREFIX,   &publicRoute, CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   &publicRoute, CS_serverFileServer},
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_PREFIX,   &gfilePrefix, CS_serverFileServer},
+    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_FILTER,   NULL, cookieFilter},
+    { CS_HTTP_METHOD_ANY,  CS_ROUTE_TYPE_PREFIX,   &ws, websocket},
+    { CS_HTTP_METHOD_HEAD, CS_ROUTE_TYPE_WILDCARD, NULL, CS_serverFileServer },
+    { CS_HTTP_METHOD_GET,  CS_ROUTE_TYPE_WILDCARD, NULL, CS_serverFileServer },
 };
 
 int main(int argc, char *argv[] ) {

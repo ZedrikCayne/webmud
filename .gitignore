@@ -1,5 +1,6 @@
 build/
 secrets/
+root/public/
 logs/
 *.swp
 .clangd

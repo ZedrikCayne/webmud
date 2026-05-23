@@ -20,7 +20,7 @@
 #include "webmud.h"
 
 
-#define SESSION_COOKIE_NAME "webmud_session"
+#define SESSION_COOKIE_NAME &CS_STRING("webmud_session")
 
 static const struct CS_Storage *longTermStorage = NULL;
 static struct CS_HashTable *cheapSessions = NULL;
@@ -52,9 +52,9 @@ void killApplication() {
 }
 
 bool cookieFilter( struct CS_ClientInfo *info ) {
-    const char *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
+    const struct CS_String *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
     if( cookieValue != NULL ) {
-        const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
+        const void *currentSession = CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) );
         if( currentSession != CS_HASHTABLE_ERROR && currentSession != NULL ) {
             return false;
         }
@@ -82,8 +82,8 @@ bool AddOrResetUser( const char *name ) {
 }
 
 bool anonymousLogin( struct CS_ClientInfo *info ) {
-    const void * username = CS_serverGetRequestFormParameter( info, "username" );
-    const void * password = CS_serverGetRequestFormParameter( info, "password" );
+    const void * username = CS_serverGetRequestFormParameter( info, &CS_STRING("username") );
+    const void * password = CS_serverGetRequestFormParameter( info, &CS_STRING("password") );
     if( username == NULL || password == NULL ) {
         return redirectTo(info,"/?reason=No%20username%20or%20password%20provided.");
     }
@@ -491,8 +491,8 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
 
 bool websocket( struct CS_ClientInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
-        const char *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
-        const void *currentSession = CS_hashtableGet( cheapSessions, cookieValue );
+        const struct CS_String *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
+        const void *currentSession = CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) );
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
         struct UserState *user = (struct UserState *)currentSession;
@@ -534,42 +534,41 @@ ERROR_CLOSE:
 
 bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
-    CS_serverSetReplyHeader( reply, "Location", location );
+    CS_serverSetReplyHeader( reply, &CS_STRING("Location"), CS_stringTempReferenceCstring(location,-1) );
     CS_serverDoReply( info, reply );
     return true;
 }
 
 bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
-    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, sessionCookie, true, CS_REPLY_COOKIE_SAMESITE_LAX );
-    CS_serverSetReplyHeader( reply, "Location", "/" );
+    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, CS_stringTempReferenceCstring(sessionCookie,-1), true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    CS_serverSetReplyHeader( reply, &CS_STRING("Location"), &CS_STRING("/") );
     CS_serverDoReply( info, reply );
     //return CS_serverPushFile( "root/index.html", info, 0, reply );
     return true;
 }
 
 bool googleLogin( struct CS_ClientInfo *info ) {
-    const char *g_csrf_header = CS_serverGetRequestCookie(info, "g_csrf_token");
+    const struct CS_String *g_csrf_header = CS_serverGetRequestCookie(info, &CS_STRING("g_csrf_token") );
     if( !g_csrf_header ) {
         CS_LOG_ERROR( "Login missing csrf token header." );
         return loginPageReturn(info);
     }
-    const char *g_csrf_form = CS_serverGetRequestFormParameter(info, "g_csrf_token");
+    const struct CS_String *g_csrf_form = CS_serverGetRequestFormParameter(info, &CS_STRING("g_csrf_token") );
     if( !g_csrf_form ) {
         CS_LOG_ERROR( "Login missing csrf token form." );
         return loginPageReturn(info);
     }
-    if( strcmp( g_csrf_header, g_csrf_form ) != 0 ) {
+    if( CS_stringStrcmp( g_csrf_header, g_csrf_form ) != 0 ) {
         CS_LOG_ERROR( "Login csrf different from form csrf." );
         return loginPageReturn(info);
     }
-    const char *credential = CS_serverGetRequestFormParameter(info, "credential");
+    const struct CS_String *credential = CS_serverGetRequestFormParameter(info, &CS_STRING("credential") );
     if( !credential ) {
         CS_LOG_ERROR( "Login missing credential." );
         return loginPageReturn(info);
     }
-    int nLen = strlen(credential);
-    const struct CS_Jwt *jwt = CS_jwtParse( credential, nLen, 1024 );
+    const struct CS_Jwt *jwt = CS_jwtParse( credential->data, credential->length, 1024 );
     if( !jwt ) {
         CS_LOG_ERROR( "Failed to parse a jwt out of the credential." );
         CS_jwtFree(jwt);
@@ -621,7 +620,7 @@ bool logout( struct CS_ClientInfo *info ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
     char *tempUuid4 = (char*)CS_uuid4StringTemp();
     if( tempUuid4 ) *tempUuid4 = 'L';
-    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, tempUuid4, true, CS_REPLY_COOKIE_SAMESITE_LAX );
+    CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, CS_stringTempReferenceCstring(tempUuid4,-1), true, CS_REPLY_COOKIE_SAMESITE_LAX );
     return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
 }
 
