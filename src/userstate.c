@@ -382,7 +382,7 @@ static void EverythingToWebsockets( struct UserState *userState, struct CS_WebSo
     if( lockUser ) CS_mutexLock( userState->mutex );
     struct CS_JsonNode *overall = CS_jsonNodeReset( userState->jsonForOutput );
     struct CS_JsonNode *container = CS_jsonNodeAppendObject( overall, NULL );
-    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedStringWithLength(container, name, what, length );
+    struct CS_JsonNode *text = CS_jsonNodeAddUnquotedCstringWithLength(container, name, what, length );
     if( !text ) return;
     struct CS_StringBuilder *sb = userState->sbForOutput;
     CS_SB_reset( sb );

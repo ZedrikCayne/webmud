@@ -129,7 +129,7 @@ RETRY_UPDATE:
             //return CS_serverPushFile( "root/loginpage.html", info, 0, NULL );
         }
     }
-    const char *sessionId = CS_uuid4StringTemp();
+    const char *sessionId = CS_uuid4CstringTemp();
     struct UserState *user = CreateUserState( username );
     CS_hashtablePut( googleIdToSessionId, username, sessionId );
     CS_hashtablePut( cheapSessions, sessionId, user );
@@ -585,7 +585,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
         CS_jwtFree(jwt);
         return loginPageReturn(info);
     }
-    char *googleId = strndup( (char*)CS_jsonNodeValueAsTempString( subject ), 64 );
+    char *googleId = strndup( (char*)CS_jsonNodeValueAsTempCstring( subject ), 64 );
 
     bool isAdmin = false;
     struct CS_JsonNode *email = CS_jsonNodeByPath( jwt->jsonPayload, "email" );
@@ -596,7 +596,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
-        sessionId = CS_uuid4StringTemp();
+        sessionId = CS_uuid4CstringTemp();
         struct UserState *user = CreateUserState( sessionId  );
         user->admin = isAdmin;
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
@@ -609,7 +609,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
 }
 
 bool autoLoginUtil( struct CS_ClientInfo *info ) {
-    const void * sessionId = CS_uuid4StringTemp();
+    const void * sessionId = CS_uuid4CstringTemp();
     struct UserState *user = CreateUserState( sessionId );
     CS_hashtablePut( cheapSessions, sessionId, user );
 
@@ -618,7 +618,7 @@ bool autoLoginUtil( struct CS_ClientInfo *info ) {
 
 bool logout( struct CS_ClientInfo *info ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
-    char *tempUuid4 = (char*)CS_uuid4StringTemp();
+    char *tempUuid4 = (char*)CS_uuid4CstringTemp();
     if( tempUuid4 ) *tempUuid4 = 'L';
     CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, CS_stringTempReferenceCstring(tempUuid4,-1), true, CS_REPLY_COOKIE_SAMESITE_LAX );
     return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
