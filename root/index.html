@@ -165,7 +165,6 @@ a:active {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <div class="output-area" id="outputDiv"></div>
     </div>
-    <div style="max-width:1;max-height:1;position:absolute;top=0;left=0;overflow:hidden" id="screenReaderElement" aria-live="polite"></div>
     <div style="position: relative" class="bottom-screen-part">
         <div id="lebar" class="statusbar lowerpadded">
             DISCONNECTED
@@ -279,14 +278,6 @@ a:active {
 
         let scrollbackTimeout = 5000;
 
-        function deleteLineFromAria() {
-            try {
-                if( screenReaderElement.firstChild )
-                    screenReaderElement.removeChild( screenReaderElement.firstChild );
-            }catch(e) {};
-            setTimeout( deleteLineFromAria, scrollbackTimeout );
-        }
-
         var zeRegexes = {};
         console.log( zeRegexes );
 
@@ -311,11 +302,6 @@ a:active {
                 } catch (e) {};
             }
             if( regexOption != "gag" ) {
-                if( text != "\r\n" ) {
-                    let screenReaderText = document.createElement("div");
-                    screenReaderText.textContent = text;
-                    screenReaderElement.appendChild( screenReaderText );
-                }
                 let newElement = document.createElement("div");
                 newElement.textContent = text;
                 let convertedHTML = newElement.innerHTML;
@@ -366,7 +352,6 @@ a:active {
         function closeEvent( event ) {
             closeWebsocket();
         }
-
 
         function sendBox() {
             let handled = false;
@@ -472,9 +457,7 @@ a:active {
 
         window.onload = function () {
             startWebsocket();
-            deleteLineFromAria();
             outputScrollDiv.scrollTop = outputDiv.scrollHeight;
-
         }
     </script>
 </body>
