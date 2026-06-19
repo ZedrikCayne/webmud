@@ -16,6 +16,7 @@
 #include <crankshaft/base64.h>
 #include <crankshaft/thread.h>
 #include <crankshaft/mutex.h>
+#include <crankshaft/random.h>
 
 #include "webmud.h"
 
@@ -41,6 +42,7 @@ bool startApplication(bool autoLogin, bool allowNonRoutable, const char *theAdmi
     appAutoLogin = autoLogin;
     appAllowNonRoutable = allowNonRoutable;
     adminEmail = theAdminEmail;
+    CS_srand(time(NULL));
     googleIdToSessionId = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     cheapSessions = CS_HASHTABLE_STRING_VOID( 256, CS_HASHTABLE_FLAG_MUTEX|CS_HASHTABLE_FLAG_VERY_PEDANTIC);
     return !googleIdToSessionId||!cheapSessions||!longTermStorage;
