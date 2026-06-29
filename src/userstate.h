@@ -50,6 +50,9 @@ struct MudState {
     bool disconnected;
     bool running;
     int  linesWaiting;
+    char *keepaliveCommand;
+    int   keepaliveTime;
+    int   keepaliveLast;
     struct Backscroll *backscroll;
     struct CS_Mutex  *socketMutex;
     struct CS_Socket *mudSocket;
@@ -99,6 +102,7 @@ struct MudState *MudStateByName( struct UserState *userState, const char *name )
 bool PutMudFront( struct UserState *userState, struct MudState *mudState );
 bool DisconnectOthers( struct UserState *userState, struct CS_WebSocket *ws );
 bool SendStatus( struct UserState *userState, bool lockUserState );
+bool DoKeepalives( struct UserState *userState, bool lockUserState );
 
 
 #ifdef __cplusplus

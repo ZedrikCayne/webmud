@@ -473,15 +473,12 @@ static bool keepAliveCommand( struct CS_WebSocket *ws, struct UserState *userSta
 
     const char *commandWithCRLF = CS_tempBuffSnprintf( 256, "%s\r\n", command );
     
-    char *commandToStuffIn = CS_cstringCopy(commandWithCRLF);
+    const char *commandToStuffIn = CS_cstringCopy(commandWithCRLF);
 
-    struct MudState *front = (struct MudState *)userState->front->what;
+    struct MudState *front = (struct UserState *)userState->front;
 
-    front->keepaliveLast = time(NULL);
-    front->keepaliveTime = timeForKeepalive;
-    char *oldCommand = front->keepaliveCommand;
-    front->keepaliveCommand = commandToStuffIn;
-    if( oldCommand ) CS_cstringFree( oldCommand );
+    userState->front->keepaliveCommand =                                            commandToStuffIn;
+
 
     return false;
 }
@@ -681,7 +678,7 @@ bool DoAllKeepalives() {
     CS_hashtableGrabMutex(cheapSessions);
 
     CS_HASHTABLE_ITER(cheapSessions, item) {
-        struct UserState *user = (struct UserState *)item->value;
+        struct UserState *user = (struct UserState *)item;
         DoKeepalives(user, true);
     }
     

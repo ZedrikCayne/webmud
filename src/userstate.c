@@ -196,6 +196,9 @@ struct MudState *CreateMud( struct UserState *user, char *name, char *address, i
             privateReturnMudState( returnValue );
             return NULL;
         }
+        returnValue->keepaliveCommand = NULL;
+        returnValue->keepaliveTime = 0;
+        returnValue->keepaliveLast = 0;
     }
 
     return returnValue;
@@ -214,6 +217,8 @@ void DestroyMud( struct MudState *mud ) {
             mud->backscroll = NULL;
             if( mud->socketMutex ) CS_mutexReturn( mud->socketMutex );
             mud->socketMutex = NULL;
+            if( mud->keepaliveCommand ) CS_cstringFree( mud->keepaliveCommand );
+            mud->keepaliveCommand = NULL;
         }
     }
 }
@@ -474,18 +479,14 @@ bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws ) {
     return returnValue;
 }
 
-bool TextToFront( struct UserState *userState, const char *what, int length, bool lock ) {
-    if( !userState || !userState->mutex || !userState->front ) return true;
-    if( lock ) CS_mutexLock( userState->mutex );
-    struct MudState *mud = (struct MudState *)userState->front->what;
+static bool TextToMud( struct MudState *mud, const char *what, int length ) {
     if( !mud || !mud->mudSocket ) {
-        if( lock ) CS_mutexUnlock( userState->mutex );
         return true;
     }
-    const char *current = what;
+    struct CS_PushPullBuffer *pp = CS_socketLockOutputBuffer( mud->mudSocket );
     int bytesSent = 0;
     int bytesPushed = 0;
-    struct CS_PushPullBuffer *pp = CS_socketLockOutputBuffer( mud->mudSocket );
+    const char *current = what;
     while( bytesSent < length ) {
         int bytesWrittenToBuffer = 0;
         int bytesWrittenToSocket = 0;
@@ -504,11 +505,19 @@ bool TextToFront( struct UserState *userState, const char *what, int length, boo
         bytesSent += bytesWrittenToSocket;
     }
     CS_socketUnlockOutputBuffer( mud->mudSocket );
-    if( lock ) CS_mutexUnlock( userState->mutex );
     if( bytesSent < length )
         return true;
 
     return false;
+ }
+
+bool TextToFront( struct UserState *userState, const char *what, int length, bool lock ) {
+    if( !userState || !userState->mutex || !userState->front ) return true;
+    if( lock ) CS_mutexLock( userState->mutex );
+    struct MudState *mud = (struct MudState *)userState->front->what;
+    bool returnValue = TextToMud(mud, what, length);
+    if( lock ) CS_mutexUnlock( userState->mutex );
+    return returnValue;
 }
 
 bool AddMud( struct UserState *userState, struct MudState *mud ) {
@@ -708,3 +717,21 @@ bool SendStatus( struct UserState *userState, bool lockUserState ) {
     if( lockUserState ) CS_mutexUnlock( userState->mutex );
     return false;
 }
+
+bool DoKeepalives( struct UserState *userState, bool lockUserState ) {
+    if( !userState || !userState->mutex || !userState->muds ) return true;
+    if( lockUserState ) CS_mutexLock( userState->mutex );
+    time_t now = time(NULL);
+    if( userState->muds ) {
+        CS_LIST_ITER( userState->muds, listItem ) {
+            struct MudState *mud = (struct MudState *)listItem->what;
+            if( mud->keepaliveCommand && (now > mud->keepaliveLast + mud->keepaliveTime) ) {
+                mud->keepaliveLast = now;
+                TextToMud( mud, mud->keepaliveCommand, strlen(mud->keepaliveCommand) );
+            }
+        }
+    }
+    if( lockUserState ) CS_mutexUnlock( userState->mutex );
+    return false;
+}
+

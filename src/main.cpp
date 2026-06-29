@@ -247,6 +247,7 @@ int main(int argc, char *argv[] ) {
         while(!GotInterrupt) {
             if( GotHup ) hupOnMainThread();
             if( logAccess ) CS_logfileFlush( server->logAccess );
+            DoAllKeepalives();
             sleep(1);
         }
         CS_logfileClose( server->logAccess );
