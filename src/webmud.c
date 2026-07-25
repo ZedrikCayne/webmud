@@ -36,7 +36,7 @@ static bool appAllowNonRoutable;
 
 static char loremIpsum[] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
-bool redirectTo( struct CS_ClientInfo *info, const char *location );
+bool redirectTo( struct CS_RequestInfo *info, const char *location );
 
 bool startApplication(bool autoLogin, bool allowNonRoutable, const char *theAdminEmail ) {
     longTermStorage = CS_storageOpen( "USER_DB", "file=secrets/webmud_userdb.sqlite", CS_STORAGE_BACKEND_SQLITE );
@@ -54,7 +54,7 @@ void killApplication() {
     if( cheapSessions ) CS_hashtableFree( cheapSessions );
 }
 
-bool cookieFilter( struct CS_ClientInfo *info ) {
+bool cookieFilter( struct CS_RequestInfo *info ) {
     const struct CS_String *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
     if( cookieValue != NULL ) {
         const void *currentSession = CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) );
@@ -68,7 +68,7 @@ bool cookieFilter( struct CS_ClientInfo *info ) {
 
 const char *defaultSalt = "kaching";
 
-bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie );
+bool loginAndReturnIndex( struct CS_RequestInfo *info, const char *sessionCookie );
 
 char *hashPassword( const char *inputPassword, const char *salt ) {
     int inputPasswordLength = strlen( inputPassword ) + strlen( salt );
@@ -84,7 +84,7 @@ bool AddOrResetUser( const char *name ) {
     return false;
 }
 
-bool anonymousLogin( struct CS_ClientInfo *info ) {
+bool anonymousLogin( struct CS_RequestInfo *info ) {
     const void * username = CS_serverGetRequestFormParameter( info, &CS_STRING("username") );
     const void * password = CS_serverGetRequestFormParameter( info, &CS_STRING("password") );
     if( username == NULL || password == NULL ) {
@@ -538,7 +538,7 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
 
 #define SEND_FRAME(__WS__,__FRAME__,__GOTO__) if((__FRAME__)==NULL||CS_WS_pushFrame(__WS__,__FRAME__,true)) { goto __GOTO__; }
 
-bool websocket( struct CS_ClientInfo *info ) {
+bool websocket( struct CS_RequestInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
         const struct CS_String *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
         const void *currentSession = CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) );
@@ -581,14 +581,14 @@ ERROR_CLOSE:
     return true;
 }
 
-bool redirectTo( struct CS_ClientInfo *info, const char *location ) {
+bool redirectTo( struct CS_RequestInfo *info, const char *location ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
     CS_serverSetReplyHeader( reply, &CS_STRING("Location"), CS_stringTempReferenceCstring(location,-1) );
     CS_serverDoReply( info, reply );
     return true;
 }
 
-bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie ) {
+bool loginAndReturnIndex( struct CS_RequestInfo *info, const char *sessionCookie ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_302, CS_MIME_HTML, NULL, 0 );
     CS_serverSetReplyCookie( reply, SESSION_COOKIE_NAME, CS_stringTempReferenceCstring(sessionCookie,-1), true, CS_REPLY_COOKIE_SAMESITE_LAX );
     CS_serverSetReplyHeader( reply, &CS_STRING("Location"), &CS_STRING("/") );
@@ -597,7 +597,7 @@ bool loginAndReturnIndex( struct CS_ClientInfo *info, const char *sessionCookie 
     return true;
 }
 
-bool googleLogin( struct CS_ClientInfo *info ) {
+bool googleLogin( struct CS_RequestInfo *info ) {
     const struct CS_String *g_csrf_header = CS_serverGetRequestCookie(info, &CS_STRING("g_csrf_token") );
     if( !g_csrf_header ) {
         CS_LOG_ERROR( "Login missing csrf token header." );
@@ -657,7 +657,7 @@ bool googleLogin( struct CS_ClientInfo *info ) {
     return loginAndReturnIndex( info, (char*)sessionId );
 }
 
-bool autoLoginUtil( struct CS_ClientInfo *info ) {
+bool autoLoginUtil( struct CS_RequestInfo *info ) {
     const void * sessionId = CS_uuid4CstringTemp();
     struct UserState *user = CreateUserState( sessionId );
     CS_hashtablePut( cheapSessions, sessionId, user );
@@ -665,7 +665,7 @@ bool autoLoginUtil( struct CS_ClientInfo *info ) {
     return loginAndReturnIndex( info, (char*)sessionId );
 }
 
-bool logout( struct CS_ClientInfo *info ) {
+bool logout( struct CS_RequestInfo *info ) {
     struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_200, CS_MIME_HTML, NULL, 0 );
     char *tempUuid4 = (char*)CS_uuid4CstringTemp();
     if( tempUuid4 ) *tempUuid4 = 'L';
@@ -673,7 +673,7 @@ bool logout( struct CS_ClientInfo *info ) {
     return CS_serverPushFile( "root/loggedoff.html", info, 0, reply );
 }
 
-bool loginPageReturn( struct CS_ClientInfo *info ) {
+bool loginPageReturn( struct CS_RequestInfo *info ) {
     return CS_serverPushFile("root/loginpage.html", info, 0, NULL );
 }
 
