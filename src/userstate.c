@@ -105,9 +105,15 @@ static bool privateAddLine( struct Backscroll *backscroll, const char *line, int
     if( newLine == NULL ) return true;
     newLine->head = line;
     newLine->size = lineLength;
-    if( CS_listPushTail( backscroll->backscrollLines, newLine, 0 ) ) return true;
-    while( CS_listCount( backscroll->backscrollLines ) > backscroll->numLines )
-        CS_listRemove( backscroll->backscrollLines, CS_listGetHead( backscroll->backscrollLines ) );
+    if( CS_listPushTail( backscroll->backscrollLines, newLine, 0 ) ) {
+        CS_slabReturn( backscroll->backscrollSlabs, newLine );
+        return true;
+    }
+    while( CS_listCount( backscroll->backscrollLines ) > backscroll->numLines ) {
+        const struct CS_ListItem *victim = CS_listGetHead( backscroll->backscrollLines );
+        CS_slabReturn( backscroll->backscrollSlabs, (struct BackscrollLine *)victim->what );
+        CS_listRemove( backscroll->backscrollLines, victim );
+    }
     const struct CS_ListItem *cutMeAndPreviousOff = NULL;
     CS_LIST_ITER_REVERSE( backscroll->backscrollLines, listItem ) {
         if( listItem->next == NULL ) continue;
@@ -123,6 +129,7 @@ static bool privateAddLine( struct Backscroll *backscroll, const char *line, int
         const struct CS_ListItem * poppedItem;
         do {
             poppedItem = CS_listPopHead( backscroll->backscrollLines );
+            CS_slabReturn( backscroll->backscrollSlabs, (struct BackscrollLine *)poppedItem->what );
             CS_listReturnItem( backscroll->backscrollLines, poppedItem );
         } while( poppedItem != cutMeAndPreviousOff );
     }
@@ -228,14 +235,18 @@ void *consumeThread(void *var) {
     mud->running = true;
     while( true ) {
         //This socket has no mutexes on input or output.
-        //We are the only ones who can delete the socket
-        if( mud->mudSocket ) {
+        //We are the only ones who can delete the socket.
+        if( mud->user == NULL || !mud->mudSocket ) {
+            break;
+        }
+        {
             struct CS_Socket *mudSocket = mud->mudSocket;
             int numBytesRead = CS_socketFillIncomingBuffer( mudSocket, false );
-            
+
             if( numBytesRead < 0 ) {
-                if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
-                mud->mudSocket = NULL;
+                CS_mutexLock( mud->socketMutex );
+                if( mud->mudSocket ) CS_socketClose( mud->mudSocket );
+                CS_mutexUnlock( mud->socketMutex );
                 mud->disconnected = true;
                 break;
             }
@@ -244,19 +255,22 @@ void *consumeThread(void *var) {
                 FeedBackscroll( mud->backscroll, CS_PP_startOfData( pp ), CS_PP_dataSize( pp ) );
                 CS_PP_reset( pp );
                 CS_socketUnlockInputBuffer( mud->mudSocket );
-                if( mud->user->front && mud->user->front->what == mud ) {
+                struct UserState *user = mud->user;
+                if( user && user->front && user->front->what == mud ) {
                     MudBackscrollToWebsockets( mud, NULL, 0, NULL, true, true );
                 }
             } else {
                 break;
             }
-        } else {
-            break;
         }
     }
     if( mud->user ) SendStatus(mud->user, true);
-    if( mud->mudSocket ) CS_socketDestroy( mud->mudSocket );
-    mud->mudSocket = NULL;
+    CS_mutexLock( mud->socketMutex );
+    if( mud->mudSocket ) {
+        CS_socketDestroy( mud->mudSocket );
+        mud->mudSocket = NULL;
+    }
+    CS_mutexUnlock( mud->socketMutex );
     mud->running = false;
     //If we've been disconnected from the user...kill ourselves.
     if( mud->user == NULL ) {
@@ -297,7 +311,6 @@ bool DisconnectMud( struct MudState *mud, bool lock ) {
         return true;
     }
     CS_socketClose( mud->mudSocket );
-    mud->mudSocket = NULL;
     CS_mutexUnlock( mud->socketMutex );
     return false;
 }
@@ -359,27 +372,28 @@ bool match( const char *filter, const char *haystack, int length ) {
 }
 
 void MudBackscrollToWebsockets( struct MudState *mud, struct CS_WebSocket *only, int number, char *filter, bool lock, bool lockUser ) {
-    struct CS_Mutex *mutex = mud?mud->backscroll?mud->backscroll->backscrollMutex:NULL:NULL;
-    if( mutex ) {
-        if( lock ) CS_mutexLock(mutex);
-        if( mud->backscroll->numLinesPushed > 0 || number != 0) {
-            int currentWaiting = number!=0?-number:-mud->backscroll->numLinesPushed;
-            if( number == 0 ) mud->backscroll->numLinesPushed = 0;
-            const struct CS_ListItem *backscrollItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
-            if( backscrollItem == NULL ) backscrollItem = CS_listGetHead( mud->backscroll->backscrollLines );
-            if( backscrollItem ) {
-                mud->linesWaiting = 0;
-            }
-            while( backscrollItem ) {
-                struct BackscrollLine *current = (struct BackscrollLine *)backscrollItem->what;
-                if( match( filter, current->head, current->size ) ) {
-                    TextToWebsockets( mud->user, only, current->head, current->size, lockUser );
-                }
-                backscrollItem = backscrollItem->next;
-            }
+    struct UserState *user = mud?mud->user:NULL;
+    if( !mud || !mud->backscroll || !user || !user->mutex ) return;
+    if( lockUser ) CS_mutexLock( user->mutex );
+    if( lock ) CS_mutexLock( mud->backscroll->backscrollMutex );
+    if( mud->backscroll->numLinesPushed > 0 || number != 0) {
+        int currentWaiting = number!=0?-number:-mud->backscroll->numLinesPushed;
+        if( number == 0 ) mud->backscroll->numLinesPushed = 0;
+        const struct CS_ListItem *backscrollItem = CS_listGetByIndex( mud->backscroll->backscrollLines, currentWaiting );
+        if( backscrollItem == NULL ) backscrollItem = CS_listGetHead( mud->backscroll->backscrollLines );
+        if( backscrollItem ) {
+            mud->linesWaiting = 0;
         }
-        if( lock ) CS_mutexUnlock(mutex);
+        while( backscrollItem ) {
+            struct BackscrollLine *current = (struct BackscrollLine *)backscrollItem->what;
+            if( match( filter, current->head, current->size ) ) {
+                TextToWebsockets( user, only, current->head, current->size, false );
+            }
+            backscrollItem = backscrollItem->next;
+        }
     }
+    if( lock ) CS_mutexUnlock( mud->backscroll->backscrollMutex );
+    if( lockUser ) CS_mutexUnlock( user->mutex );
 }
 
 static void EverythingToWebsockets( struct UserState *userState, struct CS_WebSocket *only, const char *what, int length, bool lockUser, const char *name ) {
@@ -480,10 +494,16 @@ bool RemoveWebsocket( struct UserState *userState, struct CS_WebSocket *ws ) {
 }
 
 static bool TextToMud( struct MudState *mud, const char *what, int length ) {
-    if( !mud || !mud->mudSocket ) {
+    if( !mud || !mud->socketMutex ) {
         return true;
     }
-    struct CS_PushPullBuffer *pp = CS_socketLockOutputBuffer( mud->mudSocket );
+    CS_mutexLock( mud->socketMutex );
+    struct CS_Socket *mudSocket = mud->mudSocket;
+    if( !mudSocket ) {
+        CS_mutexUnlock( mud->socketMutex );
+        return true;
+    }
+    struct CS_PushPullBuffer *pp = CS_socketLockOutputBuffer( mudSocket );
     int bytesSent = 0;
     int bytesPushed = 0;
     const char *current = what;
@@ -498,17 +518,16 @@ static bool TextToMud( struct MudState *mud, const char *what, int length ) {
             break;
         }
         bytesPushed += bytesWrittenToBuffer;
-        bytesWrittenToSocket = CS_socketEmptyOutputBuffer( mud->mudSocket, false );
+        bytesWrittenToSocket = CS_socketEmptyOutputBuffer( mudSocket, false );
         if( bytesWrittenToSocket < 0 ) {
             break;
         }
         bytesSent += bytesWrittenToSocket;
     }
-    CS_socketUnlockOutputBuffer( mud->mudSocket );
-    if( bytesSent < length )
-        return true;
-
-    return false;
+    CS_socketUnlockOutputBuffer( mudSocket );
+    bool failed = ( bytesSent < length );
+    CS_mutexUnlock( mud->socketMutex );
+    return failed;
  }
 
 bool TextToFront( struct UserState *userState, const char *what, int length, bool lock ) {
@@ -667,7 +686,7 @@ bool DeleteFront( struct UserState *userState ) {
         return true;
     }
     struct MudState *mud = (struct MudState *)userState->front->what;
-    DisconnectMud( mud, false );
+    DisconnectMud( mud, true );
     mud->user = NULL;
     const struct CS_ListItem *next = userState->front->next;
     if( !next ) next = userState->front->last;

@@ -215,6 +215,7 @@ static bool infoCommand( struct CS_WebSocket *ws, struct UserState *userState, c
     TextToWebsockets( userState, ws, CS_SB_buffer( sb ), CS_SB_size( sb ), false );
 
     CS_mutexUnlock( userState->mutex );
+    CS_SB_free( sb );
     return false;
 }
 
@@ -477,10 +478,12 @@ static bool keepAliveCommand( struct CS_WebSocket *ws, struct UserState *userSta
 
     struct MudState *front = (struct MudState *)userState->front->what;
 
+    CS_mutexLock( userState->mutex );
     front->keepaliveLast = time(NULL);
     front->keepaliveTime = timeForKeepalive;
     char *oldCommand = front->keepaliveCommand;
     front->keepaliveCommand = commandToStuffIn;
+    CS_mutexUnlock( userState->mutex );
     if( oldCommand ) CS_cstringFree( oldCommand );
 
     return false;
@@ -509,7 +512,8 @@ static struct commandToHandler commands[] = {
 bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const char *line, int lineLength ) {
     int numCommands = CS_ARRAY_SIZE( commands );
     for( int i = 0; i < numCommands; ++i ) {
-        if( memcmp( line, commands[i].command, commands[i].commandLength ) == 0 ) {
+        if( lineLength >= commands[i].commandLength &&
+            memcmp( line, commands[i].command, commands[i].commandLength ) == 0 ) {
             if( commands[i].admin && !user->admin ) continue;
             return commands[i].executeMe( ws, user, line, lineLength );
         }
@@ -519,7 +523,7 @@ bool dealWithUserCommand( struct CS_WebSocket *ws, struct UserState *user, const
 }
 
 bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const struct CS_WebSocketFrame *frame ) {
-    if( frame->payload != NULL && *(char*)frame->payload == '/' ) {
+    if( frame->payload != NULL && frame->payloadLength > 0 && *(char*)frame->payload == '/' ) {
         dealWithUserCommand( ws, user, frame->payload, frame->payloadLength );
     } else {
         //Testing loopback state.
@@ -541,10 +545,20 @@ bool dealWithUserInput( struct CS_WebSocket *ws, struct UserState *user, const s
 bool websocket( struct CS_RequestInfo *info ) {
     if ( CS_WS_requestWantsWebsocket(info) ) {
         const struct CS_String *cookieValue = CS_serverGetRequestCookie( info, SESSION_COOKIE_NAME );
-        const void *currentSession = CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) );
+        const void *currentSession = (cookieValue != NULL)
+            ? CS_hashtableGet( cheapSessions, CS_stringTempCstring(cookieValue) )
+            : NULL;
         struct CS_WebSocket *gws = CS_WS_create( info, NULL );
         struct CS_WebSocketFrame *returnFrame = NULL;
-        struct UserState *user = (struct UserState *)currentSession;
+        struct UserState *user = ( (currentSession != NULL) && (currentSession != CS_HASHTABLE_ERROR) )
+            ? (struct UserState *)currentSession
+            : NULL;
+        if( user == NULL ) {
+            if( gws ) CS_WS_destroy( gws );
+            struct CS_Reply *reply = CS_serverCreateReply( info, CS_RESPONSE_401, CS_MIME_HTML, NULL, 0 );
+            CS_serverDoReply( info, reply );
+            return true;
+        }
         if( gws ) {
             AddWebsocket( user, gws );
             struct CS_WebSocketFrame * nextFrame = NULL;
@@ -635,6 +649,10 @@ bool googleLogin( struct CS_RequestInfo *info ) {
         return loginPageReturn(info);
     }
     char *googleId = strndup( (char*)CS_jsonNodeValueAsTempCstring( subject ), 64 );
+    if( googleId == NULL ) {
+        CS_jwtFree(jwt);
+        return loginPageReturn(info);
+    }
 
     bool isAdmin = false;
     struct CS_JsonNode *email = CS_jsonNodeByPath( jwt->jsonPayload, "email" );
@@ -642,18 +660,31 @@ bool googleLogin( struct CS_RequestInfo *info ) {
         isAdmin = true;
     }
 
-    const void *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
+    const char *sessionId = CS_hashtableGet( googleIdToSessionId, googleId );
 
     if( sessionId == CS_HASHTABLE_ERROR ) {
-        sessionId = CS_uuid4CstringTemp();
+        const char *tempUuid = CS_uuid4CstringTemp();
+        sessionId = tempUuid?CS_cstringCopy( tempUuid ):NULL;
+        if( sessionId == NULL ) {
+            free( googleId );
+            CS_jwtFree( jwt );
+            return loginPageReturn(info);
+        }
         struct UserState *user = CreateUserState( sessionId  );
+        if( user == NULL ) {
+            CS_cstringFree( sessionId );
+            free( googleId );
+            CS_jwtFree( jwt );
+            return loginPageReturn(info);
+        }
         user->admin = isAdmin;
         CS_hashtablePut( googleIdToSessionId, googleId, sessionId );
         CS_hashtablePut( cheapSessions, sessionId, user );
     }
 
+    free( googleId );
     CS_jwtFree( jwt );
-    
+
     return loginAndReturnIndex( info, (char*)sessionId );
 }
 
