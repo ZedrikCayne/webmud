@@ -353,20 +353,25 @@ a:active {
         }
 
         function sendBox() {
+            sendLikeBox( inputBox.innerText );
+            inputBox.innerText = "";
+        }
+
+        function sendLikeBox( fullInnerText ) {
             let handled = false;
-            if( inputBox.innerText[0] == '/' ) {
-                if( inputBox.innerText.startsWith( "/help" ) ) {
+            if( fullInnerText[0] == '/' ) {
+                if( fullInnerText( "/help" ) ) {
                     handled = true;
                     window.open("/help.html", "_blank");
                 }
-                if( inputBox.innerText.startsWith( "/logout" ) ||
-                    inputBox.innerText.startsWith( "/logoff" ) ) {
+                if( fullInnerText.startsWith( "/logout" ) ||
+                    fullInnerText.startsWith( "/logoff" ) ) {
                     handled = true;
                     window.location.replace("/logout");
                 }
-                if( inputBox.innerText.startsWith( "/gag" ) ) {
+                if( fullInnerText.startsWith( "/gag" ) ) {
                     handled = true;
-                    let splits = inputBox.innerText.split(" ");
+                    let splits = fullInnerText.split(" ");
                     if( splits.length > 2 ) {
                         let newRegex = {};
                         newRegex.name = splits[1];
@@ -378,10 +383,10 @@ a:active {
                         setStatusMessage("Command is /gag <name> <regex>");
                     }
                 }
-                if( inputBox.innerText.startsWith( "/hilite" ) ||
-                    inputBox.innerText.startsWith( "/hilight" ) ) {
+                if( fullInnerText.startsWith( "/hilite" ) ||
+                    fullInnerText.startsWith( "/hilight" ) ) {
                     handled = true;
-                    let splits = inputBox.innerText.split(" ");
+                    let splits = fullInnerText.split(" ");
                     if( splits.length > 2 ) {
                         let newRegex = {};
                         newRegex.name = splits[1];
@@ -393,7 +398,7 @@ a:active {
                         setStatusMessage("Command is /hilight <name> <regex>");
                     }
                 }
-                if( inputBox.innerText.startsWith("/list") ) {
+                if( fullInnerText.startsWith("/list") ) {
                     handled = true;
                     if( zeRegexes ) {
                         let keys = Object.keys(zeRegexes);
@@ -409,8 +414,8 @@ a:active {
                         }
                     }
                 }
-                if( inputBox.innerText.startsWith("/del") ) {
-                    let splits = inputBox.innerText.split(" ");
+                if( fullInnerText.startsWith("/del") ) {
+                    let splits = fullInnerText.split(" ");
                     handled = true;
                     if( splits.length > 1 ) {
                         let whatToDel = splits[1].trim();
@@ -418,8 +423,7 @@ a:active {
                     }
                 }
             } 
-            if( !handled ) sendText( inputBox.innerText );
-            inputBox.innerText = "";
+            if( !handled ) sendText( fullInnerText );
         }
 
         function startWebsocket() {

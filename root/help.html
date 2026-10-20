@@ -104,6 +104,10 @@ Commands you can type in:
 
 Returns the basic info. How many incoming connections are connected to your worlds (you can connect from more than one browser at a time. They all display the same live stuff.
 
+/world &lt;name&gt; &lt;address&gt; &lt;port&gt; [ssl | sslv1]
+
+Creates a world without connecting. If the world already exists does nothing. (We will update your client's local idea of what worlds exist when you connect, and vice-versa your local client will inform the server via /world commands what clients exist, so if the server does die, your worlds have a good chance to be saved.)
+
 /connect &lt;name&gt; &lt;address&gt; &lt;port&gt; [ssl | sslv1]
 
 Connect to a remote socket. Will do SSL. Try using the ssl option first, and if it fails to connect, try sslv1 which forces webmud to try older and less secure methods.

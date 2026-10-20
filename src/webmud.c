@@ -311,6 +311,48 @@ static bool loopbackCommand( struct CS_WebSocket *ws, struct UserState *state, c
     return false;
 }
 
+static bool worldCommand( struct CS_WebSocket *ws, struct UserState *userState, const char *line, int length ) {
+    char *copy = tempCopyWithNulls( line, length );
+    char *savePtr;
+    strtok_r(copy, " ", &savePtr);
+    char * name = strtok_r(NULL, " ", &savePtr);
+    char * address = name?strtok_r(NULL, " ", &savePtr):NULL;
+    char * port_str = address?strtok_r(NULL, " ", &savePtr):NULL;
+    char * ssl = port_str?strtok_r(NULL, " ", &savePtr):NULL;
+    if( name == NULL || address == NULL || port_str == NULL ) {
+        NullStringToWebsockets( userState, ws, "World command needs <name> <host> <port> [ssl/sslv1]", true );
+        return true;
+    }
+    struct MudState *mudState = MudStateByName( userState, name );
+    if( mudState ) {
+        NullStringToWebsockets( userState, ws, "World already exists.", true );
+        return true;
+    }
+    long portNum = strtol( port_str, NULL, 10 );
+    if( portNum < 1024 ) {
+        NullStringToStatus( userState, ws, "We don't allow you to connect to ports under 1024. Sorry.", true );
+        return true;
+    }
+    bool wantSSL = false;
+    bool tlsV1 = false;
+    if( ssl ) {
+        wantSSL = strncmp(ssl,"ssl",3) == 0;
+        if( strncmp(ssl,"sslv1",5) == 0 ) {wantSSL=tlsV1=true;}
+        if( !wantSSL ) {
+            NullStringToStatus( userState, ws, "Optional ssl argument bad, needs to be ssl or sslv1", true );
+            return true;
+        }
+    }
+struct MudState * mud = CreateMud( userState, name, address, portNum, wantSSL, tlsV1, 32768, 800 );
+    if( !mud ) {
+        NullStringToStatus( userState, ws, "Failed to create a connection.", true );
+        return true;
+    }
+    AddMud( userState, mud );
+    return false;
+}
+
+
 static bool recallCommand( struct CS_WebSocket *ws, struct UserState *state, const char *line, int length ) {
     char *temp = tempCopyWithNulls( line, length );
     char *savePtr;
@@ -492,6 +534,7 @@ static bool keepAliveCommand( struct CS_WebSocket *ws, struct UserState *userSta
 static struct commandToHandler commands[] = {
     { "/info", 5, false, infoCommand },
     { "/connect", 8, false, connectCommand },
+    { "/world", 6, false, worldCommand },
     { "/next", 5, false, nextCommand },
     { "/prev", 5, false, prevCommand },
     { "/pick", 5, false, pickCommand },
