@@ -342,10 +342,14 @@ a:active {
             }
         }
 
+        let rcAutoLoaded = false;
+
         function openEvent( event ) {
             setStatusMessage("webmud connected.",true);
+            if( !rcAutoLoaded ) loadRc();
             if( oldTextToSend != null ) sendText( oldTextToSend );
             oldTextToSend = null;
+            rcAutoLoaded = true;
         }
 
         function closeEvent( event ) {
@@ -357,9 +361,29 @@ a:active {
             inputBox.innerText = "";
         }
 
+        function loadRc() {
+            let saved = localStorage.getItem("rcfile");
+            if( saved ) {
+                var lines = saved.split("\n");
+                let len = lines.length;
+                for( i = 0; i < len; ++i ) {
+                    sendLikeBox( lines[i] );
+                }
+            }
+            
+        }
+
         function sendLikeBox( fullInnerText ) {
             let handled = false;
             if( fullInnerText[0] == '/' ) {
+                if( fullInnerText.startsWith( "/rc" ) ) {
+                    window.open("/rcfile.html", "_blank");
+                    handled = true;
+                }
+                if( fullInnerText.startsWith( "/loadrc" ) ) {
+                    loadRc();
+                    handled = true;
+                }
                 if( fullInnerText.startsWith( "/help" ) ) {
                     handled = true;
                     window.open("/help.html", "_blank");
