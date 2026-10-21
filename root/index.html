@@ -360,7 +360,7 @@ a:active {
         function sendLikeBox( fullInnerText ) {
             let handled = false;
             if( fullInnerText[0] == '/' ) {
-                if( fullInnerText( "/help" ) ) {
+                if( fullInnerText.startsWith( "/help" ) ) {
                     handled = true;
                     window.open("/help.html", "_blank");
                 }

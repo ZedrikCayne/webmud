@@ -1,0 +1,133 @@
+<html>
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>rcfile</title>
+    <meta charset="utf-8"></meta>
+    <style>
+/* http://meyerweb.com/eric/tools/css/reset/ 
+   v2.0 | 20110126
+   License: none (public domain)
+*/
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure, 
+footer, header, hgroup, menu, nav, section {
+	display: block;
+}
+body {
+	line-height: 1;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+blockquote:before, blockquote:after,
+q:before, q:after {
+	content: '';
+	content: none;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+/* Reset Ends */
+
+html {
+    align: center;
+    align-content: center;
+    background-color: #606060;
+}
+body,textarea {
+    margin: 0px auto;
+    padding: 0px;
+    font-family: 'Courier New', monospace;
+    max-width:1024px;
+    line-height:1.2;
+    font-size:18px;
+    color:#E0E0E0;
+    width: 100%;
+    background-color:#000000;
+    color: #E0E0E0;
+    min-height: 90vh;
+    max-height: 90vh;
+    overflow: hidden;
+    scrollbar-color: #404040 #808080;
+    scrollbar-width: thin;
+}
+body {
+    display: flex;
+    flex-direction: column;
+}
+textarea {
+    flex-grow: 1;
+    width: 100%;
+    border: 0;
+    outline: none;
+    resize: none;
+}
+button {
+    align-self: flex-start;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    color: #0E0E0E;
+    background-color: #60F060;
+    border: 1px solid #404040;
+    padding: 0.2em 0.8em;
+}
+button:hover {
+    background-color: #707070;
+}
+a {
+    color: #E0E0E0;
+}
+a:hover {
+    color: #F0F0F0;
+}
+a:visited {
+    color: #D8D8D8;
+}
+a:active {
+    color: #FFFFFF;
+}
+</style>
+</head>
+<body>
+<noscript>You're going to need javascript for any of this to work.</noscript>
+<textarea id="rcfileBox" spellcheck="false"></textarea>
+<button type="button" id="saveButton">save</button>
+<script>
+let rcfileBox = document.getElementById("rcfileBox");
+let saveButton = document.getElementById("saveButton");
+window.onload = function () {
+    let saved = localStorage.getItem("rcfile");
+    if( saved !== null ) {
+        rcfileBox.value = saved;
+    }
+};
+saveButton.addEventListener("click", function () {
+    localStorage.setItem("rcfile", rcfileBox.value);
+});
+</script>
+</body>
+</html>
