@@ -325,7 +325,6 @@ static bool worldCommand( struct CS_WebSocket *ws, struct UserState *userState, 
     }
     struct MudState *mudState = MudStateByName( userState, name );
     if( mudState ) {
-        NullStringToWebsockets( userState, ws, "World already exists.", true );
         return true;
     }
     long portNum = strtol( port_str, NULL, 10 );
