@@ -261,6 +261,10 @@ a:active {
             }
         });
 
+        inputBox.addEventListener( "focus", function (event) {
+            outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+        });
+
         let statusTimeout = 5000;
         let statusTimeoutEvent = undefined;
 
