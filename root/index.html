@@ -165,7 +165,7 @@ a:active {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <div class="output-area" id="outputDiv"></div>
     </div>
-    <div style="position: relative" class="bottom-screen-part" onclick="focusIn()">
+    <div style="position: relative" class="bottom-screen-part" onclick="focusIn(event)">
         <div id="lebar" class="statusbar lowerpadded">
             DISCONNECTED
         </div>
@@ -201,14 +201,16 @@ a:active {
         }
         addLine("Enter /help below for help.\r\n");
 
-        function focusIn() {
+        function focusIn(event) {
             inputBox.focus();
-            const range = document.createRange();
-            range.selectNodeContents(inputBox);
-            range.collapse(false);
-            const selection = window.getSelection();
-            selection.removeAllRanges()
-            selection.addRange(range);
+            if( event.target !== inputBox ) {
+                const range = document.createRange();
+                range.selectNodeContents(inputBox);
+                range.collapse(false);
+                const selection = window.getSelection();
+                selection.removeAllRanges()
+                selection.addRange(range);
+            }
         }
 
         function inputCacheUp() {
