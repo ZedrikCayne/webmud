@@ -165,11 +165,11 @@ a:active {
     <div id="outputScrollDiv" class="top-screen-part scroll">
         <div class="output-area" id="outputDiv"></div>
     </div>
-    <div style="position: relative" class="bottom-screen-part">
+    <div style="position: relative" class="bottom-screen-part" onclick="focusIn()">
         <div id="lebar" class="statusbar lowerpadded">
             DISCONNECTED
         </div>
-        <div style="z-index: 50" class="scroll">
+        <div style="z-index: 50" class="scroll" >
             <div contenteditable="true" class="input-area lowerpadded" id="inputBox" type="text" autofocus></div>
         </div>
         <div id="upbutton" class="topright" onclick="inputCacheUp()">
@@ -192,12 +192,18 @@ a:active {
         let inputCache = [];
         let currentInputCacheIndex = 0;
         let currentLineCache = null;
+        let countLines = false;
+        let currentLineCount = 0;
 
         //Fill the backscroll so the text in the output window starts at the bottom.
         for( i = 0; i < maxBackscroll; ++i ) {
             addLine("\r\n");
         }
         addLine("Enter /help below for help.\r\n");
+
+        function focusIn() {
+            inputBox.focus();
+        }
 
         function inputCacheUp() {
             if( inputCache.length < 1 ) return;
@@ -318,6 +324,10 @@ a:active {
                     outputDiv.removeChild( outputDiv.firstChild );
                     
                 if( wantBottom ) outputScrollDiv.scrollTop = outputDiv.scrollHeight;
+                if( countLines ) {
+                    ++currentLineCount;
+                    document.title = "webmud (" + currentLineCount + ")";
+                }
             }
         }
 
@@ -490,6 +500,17 @@ a:active {
             startWebsocket();
             outputScrollDiv.scrollTop = outputDiv.scrollHeight;
         }
+
+        document.addEventListener( "visibilitychange", () => {
+            if( document.visibilityState === "hidden" ) {
+                countLines = true;
+                currentLineCount = 0;
+            } else {
+                countLines = false;
+                currentLineCount = 0;
+                document.title = "webmud";
+            }
+        } );
     </script>
 </body>
 </html>
