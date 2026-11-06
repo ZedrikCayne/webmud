@@ -203,6 +203,12 @@ a:active {
 
         function focusIn() {
             inputBox.focus();
+            const range = document.createRange();
+            range.selectNodeContents(inputBox);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection.removeAllRanges()
+            selection.addRange(range);
         }
 
         function inputCacheUp() {
